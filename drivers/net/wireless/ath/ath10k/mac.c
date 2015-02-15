@@ -2317,9 +2317,12 @@ static void ath10k_tx(struct ieee80211_hw *hw,
 	ATH10K_SKB_CB(skb)->htt.tid = ath10k_tx_h_get_tid(hdr);
 	ATH10K_SKB_CB(skb)->vdev_id = ath10k_tx_h_get_vdev_id(ar, vif);
 
+	ATH10K_SKB_CB(skb)->htt.is_raw = true;
+
 	/* it makes no sense to process injected frames like that */
 	if (vif && vif->type != NL80211_IFTYPE_MONITOR) {
-		ath10k_tx_h_nwifi(hw, skb);
+		if (!ATH10K_SKB_CB(skb)->htt.is_raw)
+			ath10k_tx_h_nwifi(hw, skb);
 		ath10k_tx_h_update_wep_key(vif, key, skb);
 		ath10k_tx_h_add_p2p_noa_ie(ar, vif, skb);
 		ath10k_tx_h_seq_no(vif, skb);
@@ -4879,8 +4882,6 @@ int ath10k_mac_register(struct ath10k *ar)
 
 		ar->hw->wiphy->interface_modes |= BIT(NL80211_IFTYPE_ADHOC);
 	}
-
-	ar->hw->netdev_features = NETIF_F_HW_CSUM;
 
 	if (config_enabled(CPTCFG_ATH10K_DFS_CERTIFIED)) {
 		/* Init ath dfs pattern detector */

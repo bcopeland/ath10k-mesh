@@ -70,6 +70,7 @@ struct ath10k_skb_cb {
 	struct {
 		u8 tid;
 		bool is_offchan;
+		bool is_raw;
 		struct ath10k_htt_txbuf *txbuf;
 		u32 txbuf_paddr;
 	} __packed htt;
