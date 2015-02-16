@@ -822,6 +822,10 @@ static int ath10k_vdev_start_restart(struct ath10k_vif *arvif, bool restart)
 		arg.ssid_len = arvif->vif->bss_conf.ssid_len;
 	}
 
+	/* hack for mesh beacon */
+	arg.ssid = "A";
+	arg.ssid_len = 1;
+
 	ath10k_dbg(ar, ATH10K_DBG_MAC,
 		   "mac vdev %d start center_freq %d phymode %s\n",
 		   arg.vdev_id, arg.channel.freq,
