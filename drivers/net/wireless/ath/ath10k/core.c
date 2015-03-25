@@ -774,6 +774,13 @@ static int ath10k_core_fetch_firmware_files(struct ath10k *ar)
 		return ret;
 	}
 
+	ar->fw_api = 5;
+	ath10k_dbg(ar, ATH10K_DBG_BOOT, "trying fw api %d\n", ar->fw_api);
+
+	ret = ath10k_core_fetch_firmware_api_n(ar, ATH10K_FW_API5_FILE);
+	if (ret == 0)
+		goto success;
+
 	ar->fw_api = 4;
 	ath10k_dbg(ar, ATH10K_DBG_BOOT, "trying fw api %d\n", ar->fw_api);
 
