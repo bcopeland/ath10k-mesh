@@ -326,6 +326,7 @@ static int ath10k_peer_create(struct ath10k *ar, u32 vdev_id, const u8 *addr)
 
 	lockdep_assert_held(&ar->conf_mutex);
 
+    printk(KERN_DEBUG "XXX trying to create peer %pM\n", addr);
 	ret = ath10k_wmi_peer_create(ar, vdev_id, addr);
 	if (ret) {
 		ath10k_warn(ar, "failed to create wmi peer %pM on vdev %i: %i\n",
@@ -333,6 +334,7 @@ static int ath10k_peer_create(struct ath10k *ar, u32 vdev_id, const u8 *addr)
 		return ret;
 	}
 
+    printk(KERN_DEBUG "XXX waiting for peer create %pM\n", addr);
 	ret = ath10k_wait_for_peer_created(ar, vdev_id, addr);
 	if (ret) {
 		ath10k_warn(ar, "failed to wait for created wmi peer %pM on vdev %i: %i\n",
@@ -340,6 +342,7 @@ static int ath10k_peer_create(struct ath10k *ar, u32 vdev_id, const u8 *addr)
 		return ret;
 	}
 	spin_lock_bh(&ar->data_lock);
+    printk(KERN_DEBUG "XXX peer %pM added\n", addr);
 	ar->num_peers++;
 	spin_unlock_bh(&ar->data_lock);
 
