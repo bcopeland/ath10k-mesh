@@ -5900,9 +5900,11 @@ int ath10k_mac_register(struct ath10k *ar)
 			IEEE80211_HW_AP_LINK_PS |
 			IEEE80211_HW_SPECTRUM_MGMT |
 			IEEE80211_HW_SW_CRYPTO_CONTROL |
+			IEEE80211_HW_SUPPORTS_PER_STA_GTK |
 			IEEE80211_HW_CONNECTION_MONITOR;
 
 	ar->hw->wiphy->features |= NL80211_FEATURE_STATIC_SMPS;
+	ar->hw->wiphy->flags |= WIPHY_FLAG_IBSS_RSN;
 
 	if (ar->ht_cap_info & WMI_HT_CAP_DYNAMIC_SMPS)
 		ar->hw->wiphy->features |= NL80211_FEATURE_DYNAMIC_SMPS;
