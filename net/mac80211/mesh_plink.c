@@ -680,6 +680,7 @@ u32 mesh_plink_open(struct sta_info *sta)
 	sta->plink_state = NL80211_PLINK_OPN_SNT;
 	mesh_plink_timer_set(sta, sdata->u.mesh.mshcfg.dot11MeshRetryTimeout);
 	spin_unlock_bh(&sta->lock);
+	printk(KERN_DEBUG "mesh: sending popen to %pM\n", sta->sta.addr);
 	mpl_dbg(sdata,
 		"Mesh plink: starting establishment with %pM\n",
 		sta->sta.addr);

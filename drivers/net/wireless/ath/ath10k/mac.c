@@ -373,6 +373,7 @@ static int ath10k_peer_create(struct ath10k *ar, u32 vdev_id, const u8 *addr)
 	if (ar->num_peers >= ar->max_num_peers)
 		return -ENOBUFS;
 
+    printk(KERN_DEBUG "XXX trying to create peer %pM\n", addr);
 	ret = ath10k_wmi_peer_create(ar, vdev_id, addr);
 	if (ret) {
 		ath10k_warn(ar, "failed to create wmi peer %pM on vdev %i: %i\n",
@@ -380,6 +381,7 @@ static int ath10k_peer_create(struct ath10k *ar, u32 vdev_id, const u8 *addr)
 		return ret;
 	}
 
+    printk(KERN_DEBUG "XXX waiting for peer create %pM\n", addr);
 	ret = ath10k_wait_for_peer_created(ar, vdev_id, addr);
 	if (ret) {
 		ath10k_warn(ar, "failed to wait for created wmi peer %pM on vdev %i: %i\n",
@@ -387,6 +389,7 @@ static int ath10k_peer_create(struct ath10k *ar, u32 vdev_id, const u8 *addr)
 		return ret;
 	}
 
+    printk(KERN_DEBUG "XXX peer %pM added\n", addr);
 	ar->num_peers++;
 
 	return 0;
@@ -908,6 +911,10 @@ static int ath10k_vdev_start_restart(struct ath10k_vif *arvif, bool restart)
 		arg.ssid = arvif->vif->bss_conf.ssid;
 		arg.ssid_len = arvif->vif->bss_conf.ssid_len;
 	}
+
+	/* hack for mesh beacon */
+	arg.ssid = "A";
+	arg.ssid_len = 1;
 
 	ath10k_dbg(ar, ATH10K_DBG_MAC,
 		   "mac vdev %d start center_freq %d phymode %s\n",
@@ -2710,9 +2717,12 @@ static void ath10k_tx(struct ieee80211_hw *hw,
 	ATH10K_SKB_CB(skb)->htt.tid = ath10k_tx_h_get_tid(hdr);
 	ATH10K_SKB_CB(skb)->vdev_id = ath10k_tx_h_get_vdev_id(ar, vif);
 
+	ATH10K_SKB_CB(skb)->htt.is_raw = true;
+
 	/* it makes no sense to process injected frames like that */
 	if (vif && vif->type != NL80211_IFTYPE_MONITOR) {
-		ath10k_tx_h_nwifi(hw, skb);
+		if (!ATH10K_SKB_CB(skb)->htt.is_raw)
+			ath10k_tx_h_nwifi(hw, skb);
 		ath10k_tx_h_add_p2p_noa_ie(ar, vif, skb);
 		ath10k_tx_h_seq_no(vif, skb);
 	}
@@ -3247,6 +3257,9 @@ static int ath10k_add_interface(struct ieee80211_hw *hw,
 		break;
 	case NL80211_IFTYPE_ADHOC:
 		arvif->vdev_type = WMI_VDEV_TYPE_IBSS;
+		break;
+	case NL80211_IFTYPE_MESH_POINT:
+		arvif->vdev_type = WMI_VDEV_TYPE_AP; /* FIXME */
 		break;
 	case NL80211_IFTYPE_AP:
 		arvif->vdev_type = WMI_VDEV_TYPE_AP;
@@ -4137,6 +4150,7 @@ static int ath10k_sta_state(struct ieee80211_hw *hw,
 	} else if (old_state == IEEE80211_STA_AUTH &&
 		   new_state == IEEE80211_STA_ASSOC &&
 		   (vif->type == NL80211_IFTYPE_AP ||
+		    vif->type == NL80211_IFTYPE_MESH_POINT ||
 		    vif->type == NL80211_IFTYPE_ADHOC)) {
 		/*
 		 * New association.
@@ -4151,6 +4165,7 @@ static int ath10k_sta_state(struct ieee80211_hw *hw,
 	} else if (old_state == IEEE80211_STA_ASSOC &&
 		   new_state == IEEE80211_STA_AUTH &&
 		   (vif->type == NL80211_IFTYPE_AP ||
+		    vif->type == NL80211_IFTYPE_MESH_POINT ||
 		    vif->type == NL80211_IFTYPE_ADHOC)) {
 		/*
 		 * Disassociation.
@@ -5263,6 +5278,7 @@ static const struct ieee80211_iface_limit ath10k_if_limits[] = {
 	{
 	.max	= 7,
 	.types	= BIT(NL80211_IFTYPE_AP)
+		| BIT(NL80211_IFTYPE_MESH_POINT)
 	},
 };
 
@@ -5270,6 +5286,7 @@ static const struct ieee80211_iface_limit ath10k_10x_if_limits[] = {
 	{
 	.max	= 8,
 	.types	= BIT(NL80211_IFTYPE_AP)
+		| BIT(NL80211_IFTYPE_MESH_POINT)
 	},
 };
 
@@ -5481,6 +5498,7 @@ int ath10k_mac_register(struct ath10k *ar)
 
 	ar->hw->wiphy->interface_modes =
 		BIT(NL80211_IFTYPE_STATION) |
+		BIT(NL80211_IFTYPE_MESH_POINT) |
 		BIT(NL80211_IFTYPE_AP);
 
 	ar->hw->wiphy->available_antennas_rx = ar->supp_rx_chainmask;
@@ -5567,8 +5585,6 @@ int ath10k_mac_register(struct ath10k *ar)
 		ret = -EINVAL;
 		goto err_free;
 	}
-
-	ar->hw->netdev_features = NETIF_F_HW_CSUM;
 
 	if (config_enabled(CPTCFG_ATH10K_DFS_CERTIFIED)) {
 		/* Init ath dfs pattern detector */

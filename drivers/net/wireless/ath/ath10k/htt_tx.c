@@ -414,6 +414,7 @@ int ath10k_htt_tx(struct ath10k_htt *htt, struct sk_buff *msdu)
 	struct ath10k_skb_cb *skb_cb = ATH10K_SKB_CB(msdu);
 	struct ath10k_hif_sg_item sg_items[2];
 	struct htt_data_tx_desc_frag *frags;
+	__le16 fc = hdr->frame_control;
 	u8 vdev_id = skb_cb->vdev_id;
 	u8 tid = skb_cb->htt.tid;
 	int prefetch_len;
@@ -444,6 +445,7 @@ int ath10k_htt_tx(struct ath10k_htt *htt, struct sk_buff *msdu)
 	 * of mgmt tx using TX_FRM there is not tx fragment list. Instead of tx
 	 * fragment list host driver specifies directly frame pointer. */
 	use_frags = htt->target_version_major < 3 ||
+		    skb_cb->htt.is_raw ||
 		    !ieee80211_is_mgmt(hdr->frame_control);
 
 	skb_cb->htt.txbuf = dma_pool_alloc(htt->tx_pool, GFP_ATOMIC,
@@ -474,8 +476,12 @@ int ath10k_htt_tx(struct ath10k_htt *htt, struct sk_buff *msdu)
 		frags[1].paddr = 0;
 		frags[1].len = 0;
 
-		flags0 |= SM(ATH10K_HW_TXRX_NATIVE_WIFI,
-			     HTT_DATA_TX_DESC_FLAGS0_PKT_TYPE);
+		if (skb_cb->htt.is_raw)
+			flags0 |= SM(ATH10K_HW_TXRX_RAW,
+				     HTT_DATA_TX_DESC_FLAGS0_PKT_TYPE);
+		else
+			flags0 |= SM(ATH10K_HW_TXRX_NATIVE_WIFI,
+				     HTT_DATA_TX_DESC_FLAGS0_PKT_TYPE);
 
 		frags_paddr = skb_cb->htt.txbuf_paddr;
 	} else {
@@ -515,10 +521,6 @@ int ath10k_htt_tx(struct ath10k_htt *htt, struct sk_buff *msdu)
 
 	flags1 |= SM((u16)vdev_id, HTT_DATA_TX_DESC_FLAGS1_VDEV_ID);
 	flags1 |= SM((u16)tid, HTT_DATA_TX_DESC_FLAGS1_EXT_TID);
-	if (msdu->ip_summed == CHECKSUM_PARTIAL) {
-		flags1 |= HTT_DATA_TX_DESC_FLAGS1_CKSUM_L3_OFFLOAD;
-		flags1 |= HTT_DATA_TX_DESC_FLAGS1_CKSUM_L4_OFFLOAD;
-	}
 
 	/* Prevent firmware from sending up tx inspection requests. There's
 	 * nothing ath10k can do with frames requested for inspection so force
@@ -529,7 +531,18 @@ int ath10k_htt_tx(struct ath10k_htt *htt, struct sk_buff *msdu)
 	skb_cb->htt.txbuf->cmd_hdr.msg_type = HTT_H2T_MSG_TYPE_TX_FRM;
 	skb_cb->htt.txbuf->cmd_tx.flags0 = flags0;
 	skb_cb->htt.txbuf->cmd_tx.flags1 = __cpu_to_le16(flags1);
-	skb_cb->htt.txbuf->cmd_tx.len = __cpu_to_le16(msdu->len);
+
+	/* Firmware has a buggy raw tx mode and it assumes packet is a 802.3
+	 * frame. If length here isn't properly fixed up frames xmited on the
+	 * air contain garbage at the end and have incorrect length.
+	 */
+	if (skb_cb->htt.is_raw)
+		skb_cb->htt.txbuf->cmd_tx.len = __cpu_to_le16(msdu->len -
+							ieee80211_hdrlen(fc) +
+							sizeof(struct ethhdr));
+	else
+		skb_cb->htt.txbuf->cmd_tx.len = __cpu_to_le16(msdu->len);
+
 	skb_cb->htt.txbuf->cmd_tx.id = __cpu_to_le16(msdu_id);
 	skb_cb->htt.txbuf->cmd_tx.frags_paddr = __cpu_to_le32(frags_paddr);
 	skb_cb->htt.txbuf->cmd_tx.peerid = __cpu_to_le16(HTT_INVALID_PEERID);
@@ -544,6 +557,8 @@ int ath10k_htt_tx(struct ath10k_htt *htt, struct sk_buff *msdu)
 			msdu->data, msdu->len);
 	trace_ath10k_tx_hdr(ar, msdu->data, msdu->len);
 	trace_ath10k_tx_payload(ar, msdu->data, msdu->len);
+
+	printk(KERN_DEBUG "tx %pM seq %d\n", hdr->addr1, le16_to_cpu(hdr->seq_ctrl) >> 4);
 
 	sg_items[0].transfer_id = 0;
 	sg_items[0].transfer_context = NULL;
