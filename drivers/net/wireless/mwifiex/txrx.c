@@ -64,10 +64,6 @@ int mwifiex_handle_rx_packet(struct mwifiex_adapter *adapter,
 	else
 		ret = mwifiex_process_sta_rx_packet(priv, skb);
 
-	/* Decrement RX pending counter for each packet */
-	if (adapter->if_ops.data_complete)
-		adapter->if_ops.data_complete(adapter);
-
 	return ret;
 }
 EXPORT_SYMBOL_GPL(mwifiex_handle_rx_packet);
@@ -84,10 +80,12 @@ EXPORT_SYMBOL_GPL(mwifiex_handle_rx_packet);
 int mwifiex_process_tx(struct mwifiex_private *priv, struct sk_buff *skb,
 		       struct mwifiex_tx_param *tx_param)
 {
-	int ret = -1;
+	int hroom, ret = -1;
 	struct mwifiex_adapter *adapter = priv->adapter;
 	u8 *head_ptr;
 	struct txpd *local_tx_pd = NULL;
+
+	hroom = (adapter->iface_type == MWIFIEX_USB) ? 0 : INTF_HEADER_LEN;
 
 	if (priv->bss_role == MWIFIEX_BSS_ROLE_UAP)
 		head_ptr = mwifiex_process_uap_txpd(priv, skb);
@@ -96,11 +94,9 @@ int mwifiex_process_tx(struct mwifiex_private *priv, struct sk_buff *skb,
 
 	if (head_ptr) {
 		if (GET_BSS_ROLE(priv) == MWIFIEX_BSS_ROLE_STA)
-			local_tx_pd =
-				(struct txpd *) (head_ptr + INTF_HEADER_LEN);
+			local_tx_pd = (struct txpd *)(head_ptr + hroom);
 		if (adapter->iface_type == MWIFIEX_USB) {
 			adapter->data_sent = true;
-			skb_pull(skb, INTF_HEADER_LEN);
 			ret = adapter->if_ops.host_to_card(adapter,
 							   MWIFIEX_USB_EP_DATA,
 							   skb, NULL);
@@ -207,3 +203,34 @@ done:
 }
 EXPORT_SYMBOL_GPL(mwifiex_write_data_complete);
 
+void mwifiex_parse_tx_status_event(struct mwifiex_private *priv,
+				   void *event_body)
+{
+	struct tx_status_event *tx_status = (void *)priv->adapter->event_body;
+	struct sk_buff *ack_skb;
+	unsigned long flags;
+	struct mwifiex_txinfo *tx_info;
+
+	if (!tx_status->tx_token_id)
+		return;
+
+	spin_lock_irqsave(&priv->ack_status_lock, flags);
+	ack_skb = idr_find(&priv->ack_status_frames, tx_status->tx_token_id);
+	if (ack_skb)
+		idr_remove(&priv->ack_status_frames, tx_status->tx_token_id);
+	spin_unlock_irqrestore(&priv->ack_status_lock, flags);
+
+	if (ack_skb) {
+		tx_info = MWIFIEX_SKB_TXCB(ack_skb);
+
+		if (tx_info->flags & MWIFIEX_BUF_FLAG_EAPOL_TX_STATUS) {
+			/* consumes ack_skb */
+			skb_complete_wifi_ack(ack_skb, !tx_status->status);
+		} else {
+			cfg80211_mgmt_tx_status(&priv->wdev, tx_info->cookie,
+						ack_skb->data, ack_skb->len,
+						!tx_status->status, GFP_ATOMIC);
+			dev_kfree_skb_any(ack_skb);
+		}
+	}
+}

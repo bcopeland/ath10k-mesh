@@ -5,6 +5,8 @@ config ATH9K_COMMON
 	tristate
 	depends on m
 	select ATH_COMMON
+	depends on DEBUG_FS
+	depends on RELAY
 config ATH9K_DFS_DEBUGFS
 	def_bool y
 	depends on ATH9K_DEBUGFS && ATH9K_DFS_CERTIFIED
@@ -23,8 +25,8 @@ config ATH9K
 	depends on MAC80211 && HAS_DMA
 	select ATH9K_HW
 	select MAC80211_LEDS
-	select BACKPORT_LEDS_CLASS
-	select BACKPORT_NEW_LEDS
+	select BPAUTO_LEDS_CLASS
+	select BPAUTO_NEW_LEDS
 	select ATH9K_COMMON
 	---help---
 	  This module adds support for wireless adapters based on
@@ -151,14 +153,19 @@ config ATH9K_CHANNEL_CONTEXT
 	 for multi-channel concurrency. Enable this if P2P PowerSave support
 	 is required.
 
+config ATH9K_PCOEM
+	bool "Atheros ath9k support for PC OEM cards" if EXPERT
+	depends on ATH9K
+	default y
+
 config ATH9K_HTC
        tristate "Atheros HTC based wireless cards support"
        depends on m
        depends on USB && MAC80211
        select ATH9K_HW
        select MAC80211_LEDS
-       select BACKPORT_LEDS_CLASS
-       select BACKPORT_NEW_LEDS
+       select BPAUTO_LEDS_CLASS
+       select BPAUTO_NEW_LEDS
        select ATH9K_COMMON
        ---help---
 	 Support for Atheros HTC based cards.

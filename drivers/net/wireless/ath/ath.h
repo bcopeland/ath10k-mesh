@@ -64,6 +64,7 @@ enum ath_op_flags {
 	ATH_OP_HW_RESET,
 	ATH_OP_SCANNING,
 	ATH_OP_MULTI_CHANNEL,
+	ATH_OP_WOW_ENABLED,
 };
 
 enum ath_bus_type {
@@ -80,6 +81,7 @@ struct reg_dmn_pair_mapping {
 
 struct ath_regulatory {
 	char alpha2[2];
+	enum nl80211_dfs_regions region;
 	u16 country_code;
 	u16 max_power_level;
 	u16 current_rd;
@@ -134,6 +136,11 @@ struct ath_ops {
 struct ath_common;
 struct ath_bus_ops;
 
+struct ath_ps_ops {
+	void (*wakeup)(struct ath_common *common);
+	void (*restore)(struct ath_common *common);
+};
+
 struct ath_common {
 	void *ah;
 	void *priv;
@@ -147,7 +154,7 @@ struct ath_common {
 	u16 cachelsz;
 	u16 curaid;
 	u8 macaddr[ETH_ALEN];
-	u8 curbssid[ETH_ALEN];
+	u8 curbssid[ETH_ALEN] __aligned(2);
 	u8 bssidmask[ETH_ALEN];
 
 	u32 rx_bufsize;
@@ -168,6 +175,7 @@ struct ath_common {
 	struct ath_regulatory reg_world_copy;
 	const struct ath_ops *ops;
 	const struct ath_bus_ops *bus_ops;
+	const struct ath_ps_ops *ps_ops;
 
 	bool btcoex_enabled;
 	bool disable_ani;
@@ -176,6 +184,11 @@ struct ath_common {
 	int last_rssi;
 	struct ieee80211_supported_band sbands[IEEE80211_NUM_BANDS];
 };
+
+static inline const struct ath_ps_ops *ath_ps_ops(struct ath_common *common)
+{
+	return common->ps_ops;
+}
 
 struct sk_buff *ath_rxbuf_alloc(struct ath_common *common,
 				u32 len,
@@ -268,6 +281,7 @@ enum ATH_DEBUG {
 };
 
 #define ATH_DBG_DEFAULT (ATH_DBG_FATAL)
+#define ATH_DBG_MAX_LEN 512
 
 #ifdef CPTCFG_ATH_DEBUG
 

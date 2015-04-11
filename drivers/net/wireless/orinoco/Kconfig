@@ -2,7 +2,8 @@ config HERMES
 	tristate "Hermes chipset 802.11b support (Orinoco/Prism2/Symbol)"
 	depends on m
 	depends on (PPC_PMAC || PCI || PCMCIA)
-	depends on CFG80211 && CFG80211_WEXT
+	depends on CFG80211
+	select CFG80211_WEXT_EXPORT
 	depends on WIRELESS_EXT
 	depends on WEXT_SPY
 	depends on WEXT_PRIV

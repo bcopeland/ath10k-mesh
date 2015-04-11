@@ -20,8 +20,8 @@ config CARL9170_LEDS
 	bool "SoftLED Support"
 	depends on CARL9170
 	select MAC80211_LEDS
-	select BACKPORT_LEDS_CLASS
-	select BACKPORT_NEW_LEDS
+	select BPAUTO_LEDS_CLASS
+	select BPAUTO_NEW_LEDS
 	default y
 	help
 	  This option is necessary, if you want your device' LEDs to blink

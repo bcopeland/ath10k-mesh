@@ -5,6 +5,13 @@
 
 #include <linux/version.h>
 
+/*
+ * string.h is usually included from the asm/ folder in most configuration,
+ * but on some older kernels it doesn't. As we're using memcpy() in the code
+ * below, we need to be safe and make sure string.h is indeed there.
+ */
+#include <linux/string.h>
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,9,0)
 /* backport
  * commit 9f3b795a626ee79574595e06d1437fe0c7d51d29
@@ -110,6 +117,12 @@ backport_device_release_driver(struct device *dev)
 	device_unlock(dev);
 }
 #define device_release_driver LINUX_BACKPORT(device_release_driver)
+
+#define kobj_to_dev LINUX_BACKPORT(kobj_to_dev)
+static inline struct device *kobj_to_dev(struct kobject *kobj)
+{
+	return container_of(kobj, struct device, kobj);
+}
 #endif /* LINUX_VERSION_CODE <= KERNEL_VERSION(3,6,0) */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,11,0) && RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7,0)
@@ -170,5 +183,21 @@ static inline void *devm_kmalloc_array(struct device *dev,
 	return devm_kmalloc(dev, n * size, flags);
 }
 #endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,16,0)
+#define devm_kmemdup LINUX_BACKPORT(devm_kmemdup)
+static inline void *devm_kmemdup(struct device *dev, const void *src,
+				 size_t len, gfp_t gfp)
+{
+	void *p;
+
+	p = devm_kmalloc(dev, len, gfp);
+	if (p)
+		memcpy(p, src, len);
+
+	return p;
+}
+#endif
+
 
 #endif /* __BACKPORT_DEVICE_H */

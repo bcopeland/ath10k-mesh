@@ -49,6 +49,9 @@
  *	packets. This means the link is enabled.
  * @WLAN_STA_TDLS_INITIATOR: We are the initiator of the TDLS link with this
  *	station.
+ * @WLAN_STA_TDLS_CHAN_SWITCH: This TDLS peer supports TDLS channel-switching
+ * @WLAN_STA_TDLS_OFF_CHANNEL: The local STA is currently off-channel with this
+ *	TDLS peer
  * @WLAN_STA_UAPSD: Station requested unscheduled SP while driver was
  *	keeping station in power-save mode, reply when the driver
  *	unblocks the station.
@@ -78,6 +81,8 @@ enum ieee80211_sta_info_flags {
 	WLAN_STA_TDLS_PEER,
 	WLAN_STA_TDLS_PEER_AUTH,
 	WLAN_STA_TDLS_INITIATOR,
+	WLAN_STA_TDLS_CHAN_SWITCH,
+	WLAN_STA_TDLS_OFF_CHANNEL,
 	WLAN_STA_UAPSD,
 	WLAN_STA_SP,
 	WLAN_STA_4ADDR_EVENT,
@@ -229,25 +234,9 @@ struct sta_ampdu_mlme {
 	u8 dialog_token_allocator;
 };
 
-/*
- * struct ieee80211_tx_latency_stat - Tx latency statistics
- *
- * Measures TX latency and jitter for a station per TID.
- *
- * @max: worst case latency
- * @sum: sum of all latencies
- * @counter: amount of Tx frames sent from interface
- * @bins: each bin counts how many frames transmitted within a certain
- * latency range. when disabled it is NULL.
- * @bin_count: amount of bins.
- */
-struct ieee80211_tx_latency_stat {
-	u32 max;
-	u32 sum;
-	u32 counter;
-	u32 *bins;
-	u32 bin_count;
-};
+
+/* Value to indicate no TID reservation */
+#define IEEE80211_TID_UNRESERVED	0xff
 
 /**
  * struct sta_info - STA information
@@ -306,7 +295,6 @@ struct ieee80211_tx_latency_stat {
  * @tid_seq: per-TID sequence numbers for sending to this STA
  * @ampdu_mlme: A-MPDU state machine state
  * @timer_to_tid: identity mapping to ID timers
- * @tx_lat: Tx latency statistics
  * @llid: Local link ID
  * @plid: Peer link ID
  * @reason: Cancel reason on PLINK_HOLDING state
@@ -336,6 +324,16 @@ struct ieee80211_tx_latency_stat {
  * @known_smps_mode: the smps_mode the client thinks we are in. Relevant for
  *	AP only.
  * @cipher_scheme: optional cipher scheme for this station
+ * @last_tdls_pkt_time: holds the time in jiffies of last TDLS pkt ACKed
+ * @reserved_tid: reserved TID (if any, otherwise IEEE80211_TID_UNRESERVED)
+ * @tx_msdu: MSDUs transmitted to this station, using IEEE80211_NUM_TID
+ *	entry for non-QoS frames
+ * @tx_msdu_retries: MSDU retries for transmissions to to this station,
+ *	using IEEE80211_NUM_TID entry for non-QoS frames
+ * @tx_msdu_failed: MSDU failures for transmissions to to this station,
+ *	using IEEE80211_NUM_TID entry for non-QoS frames
+ * @rx_msdu: MSDUs received from this station, using IEEE80211_NUM_TID
+ *	entry for non-QoS frames
  */
 struct sta_info {
 	/* General information, mostly static */
@@ -406,14 +404,16 @@ struct sta_info {
 	u32 last_rx_rate_vht_flag;
 	u8 last_rx_rate_vht_nss;
 	u16 tid_seq[IEEE80211_QOS_CTL_TID_MASK + 1];
+	u64 tx_msdu[IEEE80211_NUM_TIDS + 1];
+	u64 tx_msdu_retries[IEEE80211_NUM_TIDS + 1];
+	u64 tx_msdu_failed[IEEE80211_NUM_TIDS + 1];
+	u64 rx_msdu[IEEE80211_NUM_TIDS + 1];
 
 	/*
 	 * Aggregation information, locked with lock.
 	 */
 	struct sta_ampdu_mlme ampdu_mlme;
 	u8 timer_to_tid[IEEE80211_NUM_TIDS];
-
-	struct ieee80211_tx_latency_stat *tx_lat;
 
 #ifdef CPTCFG_MAC80211_MESH
 	/*
@@ -452,6 +452,8 @@ struct sta_info {
 
 	/* TDLS timeout data */
 	unsigned long last_tdls_pkt_time;
+
+	u8 reserved_tid;
 
 	/* keep last! */
 	struct ieee80211_sta sta;

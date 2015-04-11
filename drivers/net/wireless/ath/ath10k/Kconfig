@@ -34,6 +34,7 @@ config ATH10K_DEBUGFS
 	  If unsure, say Y to make it easier to debug problems.
 
 config ATH10K_TRACING
+	depends on !KERNEL_3_4
 	bool "Atheros ath10k tracing support"
 	depends on ATH10K
 	depends on EVENT_TRACING

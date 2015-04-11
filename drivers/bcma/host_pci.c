@@ -13,10 +13,12 @@
 
 static void bcma_host_pci_switch_core(struct bcma_device *core)
 {
+	int win2 = core->bus->host_is_pcie2 ?
+		BCMA_PCIE2_BAR0_WIN2 : BCMA_PCI_BAR0_WIN2;
+
 	pci_write_config_dword(core->bus->host_pci, BCMA_PCI_BAR0_WIN,
 			       core->addr);
-	pci_write_config_dword(core->bus->host_pci, BCMA_PCI_BAR0_WIN2,
-			       core->wrap);
+	pci_write_config_dword(core->bus->host_pci, win2, core->wrap);
 	core->bus->mapped_core = core;
 	bcma_debug(core->bus, "Switched to core: 0x%X\n", core->id.id);
 }
@@ -211,16 +213,26 @@ static int bcma_host_pci_probe(struct pci_dev *dev,
 	/* Initialize struct, detect chip */
 	bcma_init_bus(bus);
 
+	/* Scan bus to find out generation of PCIe core */
+	err = bcma_bus_scan(bus);
+	if (err)
+		goto err_pci_unmap_mmio;
+
+	if (bcma_find_core(bus, BCMA_CORE_PCIE2))
+		bus->host_is_pcie2 = true;
+
 	/* Register */
 	err = bcma_bus_register(bus);
 	if (err)
-		goto err_pci_unmap_mmio;
+		goto err_unregister_cores;
 
 	pci_set_drvdata(dev, bus);
 
 out:
 	return err;
 
+err_unregister_cores:
+	bcma_unregister_cores(bus);
 err_pci_unmap_mmio:
 	pci_iounmap(dev, bus->mmio);
 err_pci_release_regions:
@@ -275,17 +287,21 @@ static SIMPLE_DEV_PM_OPS(bcma_pm_ops, bcma_host_pci_suspend,
 static const struct pci_device_id bcma_pci_bridge_tbl[] = {
 	{ PCI_DEVICE(PCI_VENDOR_ID_BROADCOM, 0x0576) },
 	{ PCI_DEVICE(PCI_VENDOR_ID_BROADCOM, 0x4313) },
-	{ PCI_DEVICE(PCI_VENDOR_ID_BROADCOM, 43224) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_BROADCOM, 43224) },	/* 0xa8d8 */
 	{ PCI_DEVICE(PCI_VENDOR_ID_BROADCOM, 0x4331) },
 	{ PCI_DEVICE(PCI_VENDOR_ID_BROADCOM, 0x4353) },
 	{ PCI_DEVICE(PCI_VENDOR_ID_BROADCOM, 0x4357) },
 	{ PCI_DEVICE(PCI_VENDOR_ID_BROADCOM, 0x4358) },
 	{ PCI_DEVICE(PCI_VENDOR_ID_BROADCOM, 0x4359) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_BROADCOM, 0x4360) },
 	{ PCI_DEVICE(PCI_VENDOR_ID_BROADCOM, 0x4365) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_BROADCOM, 0x43a0) },
 	{ PCI_DEVICE(PCI_VENDOR_ID_BROADCOM, 0x43a9) },
 	{ PCI_DEVICE(PCI_VENDOR_ID_BROADCOM, 0x43aa) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_BROADCOM, 0x43b1) },
 	{ PCI_DEVICE(PCI_VENDOR_ID_BROADCOM, 0x4727) },
-	{ PCI_DEVICE(PCI_VENDOR_ID_BROADCOM, 43227) },	/* 0xA8DB */
+	{ PCI_DEVICE(PCI_VENDOR_ID_BROADCOM, 43227) },	/* 0xa8db, BCM43217 (sic!) */
+	{ PCI_DEVICE(PCI_VENDOR_ID_BROADCOM, 43228) },	/* 0xa8dc */
 	{ 0, },
 };
 MODULE_DEVICE_TABLE(pci, bcma_pci_bridge_tbl);
@@ -307,3 +323,31 @@ void __exit bcma_host_pci_exit(void)
 {
 	pci_unregister_driver(&bcma_pci_bridge_driver);
 }
+
+/**************************************************
+ * Runtime ops for drivers.
+ **************************************************/
+
+/* See also pcicore_up */
+void bcma_host_pci_up(struct bcma_bus *bus)
+{
+	if (bus->hosttype != BCMA_HOSTTYPE_PCI)
+		return;
+
+	if (bus->host_is_pcie2)
+		bcma_core_pcie2_up(&bus->drv_pcie2);
+	else
+		bcma_core_pci_up(&bus->drv_pci[0]);
+}
+EXPORT_SYMBOL_GPL(bcma_host_pci_up);
+
+/* See also pcicore_down */
+void bcma_host_pci_down(struct bcma_bus *bus)
+{
+	if (bus->hosttype != BCMA_HOSTTYPE_PCI)
+		return;
+
+	if (!bus->host_is_pcie2)
+		bcma_core_pci_down(&bus->drv_pci[0]);
+}
+EXPORT_SYMBOL_GPL(bcma_host_pci_down);

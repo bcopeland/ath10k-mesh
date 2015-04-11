@@ -176,4 +176,66 @@ static inline void netdev_reset_queue(struct net_device *dev_queue)
 			 count)
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(3,17,0) */
 
+/*
+ * This backports this commit from upstream:
+ * commit 87757a917b0b3c0787e0563c679762152be81312
+ * net: force a list_del() in unregister_netdevice_many()
+ */
+#if (!(LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,45) && \
+       LINUX_VERSION_CODE < KERNEL_VERSION(3,11,0)) && \
+     !(LINUX_VERSION_CODE >= KERNEL_VERSION(3,12,23) && \
+       LINUX_VERSION_CODE < KERNEL_VERSION(3,13,0)) && \
+     !(LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,9) && \
+       LINUX_VERSION_CODE < KERNEL_VERSION(3,15,0)) && \
+     !(LINUX_VERSION_CODE >= KERNEL_VERSION(3,15,2) && \
+       LINUX_VERSION_CODE < KERNEL_VERSION(3,16,0)) && \
+     (LINUX_VERSION_CODE < KERNEL_VERSION(3,16,0)))
+static inline void backport_unregister_netdevice_many(struct list_head *head)
+{
+	unregister_netdevice_many(head);
+
+	if (!(head->next == LIST_POISON1 && head->prev == LIST_POISON2))
+		list_del(head);
+}
+#define unregister_netdevice_many LINUX_BACKPORT(unregister_netdevice_many)
+#endif
+
+/*
+ * Complicated way of saying: We only backport netdev_rss_key stuff on kernels
+ * that either already have net_get_random_once() (>= 3.13) or where we've been
+ * brave enough to backport it due to static keys, refer to backports commit
+ * 8cb8816d for details on difficulty to backport that further down.
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,19,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,13,0)
+#define __BACKPORT_NETDEV_RSS_KEY_FILL 1
+#else
+#ifdef __BACKPORT_NET_GET_RANDOM_ONCE
+#define __BACKPORT_NETDEV_RSS_KEY_FILL 1
+#endif
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3,13,0) */
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(3,19,0) */
+
+#ifdef __BACKPORT_NETDEV_RSS_KEY_FILL
+/* RSS keys are 40 or 52 bytes long */
+#define NETDEV_RSS_KEY_LEN 52
+#define netdev_rss_key LINUX_BACKPORT(netdev_rss_key)
+extern u8 netdev_rss_key[NETDEV_RSS_KEY_LEN];
+#define netdev_rss_key_fill LINUX_BACKPORT(netdev_rss_key_fill)
+void netdev_rss_key_fill(void *buffer, size_t len);
+#endif /* __BACKPORT_NETDEV_RSS_KEY_FILL */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,19,0)
+#define napi_alloc_skb LINUX_BACKPORT(napi_alloc_skb)
+static inline struct sk_buff *napi_alloc_skb(struct napi_struct *napi,
+					     unsigned int length)
+{
+	return netdev_alloc_skb_ip_align(napi->dev, length);
+}
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(3,19,0) */
+
+#ifndef IFF_TX_SKB_SHARING
+#define IFF_TX_SKB_SHARING 0
+#endif
+
 #endif /* __BACKPORT_NETDEVICE_H */

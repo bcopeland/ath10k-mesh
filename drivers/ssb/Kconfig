@@ -128,7 +128,7 @@ config SSB_PCICORE_HOSTMODE
 	  PCIcore hostmode operation (external PCI bus).
 
 config SSB_DRIVER_MIPS
-	depends on !BACKPORT_KERNEL_3_3
+	depends on !KERNEL_3_3
 	bool "SSB Broadcom MIPS core driver"
 	depends on SSB && MIPS
 	select SSB_SERIAL

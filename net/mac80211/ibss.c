@@ -470,22 +470,19 @@ int ieee80211_ibss_csa_beacon(struct ieee80211_sub_if_data *sdata,
 	struct beacon_data *presp, *old_presp;
 	struct cfg80211_bss *cbss;
 	const struct cfg80211_bss_ies *ies;
-	u16 capability;
+	u16 capability = 0;
 	u64 tsf;
 	int ret = 0;
 
 	sdata_assert_lock(sdata);
 
-	capability = WLAN_CAPABILITY_IBSS;
-
 	if (ifibss->privacy)
-		capability |= WLAN_CAPABILITY_PRIVACY;
+		capability = WLAN_CAPABILITY_PRIVACY;
 
 	cbss = cfg80211_get_bss(sdata->local->hw.wiphy, ifibss->chandef.chan,
 				ifibss->bssid, ifibss->ssid,
-				ifibss->ssid_len, WLAN_CAPABILITY_IBSS |
-				WLAN_CAPABILITY_PRIVACY,
-				capability);
+				ifibss->ssid_len, IEEE80211_BSS_TYPE_IBSS,
+				IEEE80211_PRIVACY(ifibss->privacy));
 
 	if (WARN_ON(!cbss)) {
 		ret = -EINVAL;
@@ -525,23 +522,17 @@ int ieee80211_ibss_finish_csa(struct ieee80211_sub_if_data *sdata)
 	struct ieee80211_if_ibss *ifibss = &sdata->u.ibss;
 	struct cfg80211_bss *cbss;
 	int err, changed = 0;
-	u16 capability;
 
 	sdata_assert_lock(sdata);
 
 	/* update cfg80211 bss information with the new channel */
 	if (!is_zero_ether_addr(ifibss->bssid)) {
-		capability = WLAN_CAPABILITY_IBSS;
-
-		if (ifibss->privacy)
-			capability |= WLAN_CAPABILITY_PRIVACY;
-
 		cbss = cfg80211_get_bss(sdata->local->hw.wiphy,
 					ifibss->chandef.chan,
 					ifibss->bssid, ifibss->ssid,
-					ifibss->ssid_len, WLAN_CAPABILITY_IBSS |
-					WLAN_CAPABILITY_PRIVACY,
-					capability);
+					ifibss->ssid_len,
+					IEEE80211_BSS_TYPE_IBSS,
+					IEEE80211_PRIVACY(ifibss->privacy));
 		/* XXX: should not really modify cfg80211 data */
 		if (cbss) {
 			cbss->channel = sdata->csa_chandef.chan;
@@ -682,19 +673,13 @@ static void ieee80211_ibss_disconnect(struct ieee80211_sub_if_data *sdata)
 	struct cfg80211_bss *cbss;
 	struct beacon_data *presp;
 	struct sta_info *sta;
-	u16 capability;
 
 	if (!is_zero_ether_addr(ifibss->bssid)) {
-		capability = WLAN_CAPABILITY_IBSS;
-
-		if (ifibss->privacy)
-			capability |= WLAN_CAPABILITY_PRIVACY;
-
 		cbss = cfg80211_get_bss(local->hw.wiphy, ifibss->chandef.chan,
 					ifibss->bssid, ifibss->ssid,
-					ifibss->ssid_len, WLAN_CAPABILITY_IBSS |
-					WLAN_CAPABILITY_PRIVACY,
-					capability);
+					ifibss->ssid_len,
+					IEEE80211_BSS_TYPE_IBSS,
+					IEEE80211_PRIVACY(ifibss->privacy));
 
 		if (cbss) {
 			cfg80211_unlink_bss(local->hw.wiphy, cbss);
@@ -805,7 +790,7 @@ ieee80211_ibss_process_chanswitch(struct ieee80211_sub_if_data *sdata,
 
 	memset(&params, 0, sizeof(params));
 	memset(&csa_ie, 0, sizeof(csa_ie));
-	err = ieee80211_parse_ch_switch_ie(sdata, elems, beacon,
+	err = ieee80211_parse_ch_switch_ie(sdata, elems,
 					   ifibss->chandef.chan->band,
 					   sta_flags, ifibss->bssid, &csa_ie);
 	/* can't switch to destination channel, fail */
@@ -1069,9 +1054,16 @@ static void ieee80211_rx_bss_info(struct ieee80211_sub_if_data *sdata,
 		}
 
 		if (sta && rates_updated) {
-			drv_sta_rc_update(local, sdata, &sta->sta,
-					  IEEE80211_RC_SUPP_RATES_CHANGED);
+			u32 changed = IEEE80211_RC_SUPP_RATES_CHANGED;
+			u8 rx_nss = sta->sta.rx_nss;
+
+			/* Force rx_nss recalculation */
+			sta->sta.rx_nss = 0;
 			rate_control_rate_init(sta);
+			if (sta->sta.rx_nss != rx_nss)
+				changed |= IEEE80211_RC_NSS_CHANGED;
+
+			drv_sta_rc_update(local, sdata, &sta->sta, changed);
 		}
 
 		rcu_read_unlock();
@@ -1318,7 +1310,6 @@ static void ieee80211_sta_find_ibss(struct ieee80211_sub_if_data *sdata)
 	const u8 *bssid = NULL;
 	enum nl80211_bss_scan_width scan_width;
 	int active_ibss;
-	u16 capability;
 
 	sdata_assert_lock(sdata);
 
@@ -1328,9 +1319,6 @@ static void ieee80211_sta_find_ibss(struct ieee80211_sub_if_data *sdata)
 	if (active_ibss)
 		return;
 
-	capability = WLAN_CAPABILITY_IBSS;
-	if (ifibss->privacy)
-		capability |= WLAN_CAPABILITY_PRIVACY;
 	if (ifibss->fixed_bssid)
 		bssid = ifibss->bssid;
 	if (ifibss->fixed_channel)
@@ -1339,8 +1327,8 @@ static void ieee80211_sta_find_ibss(struct ieee80211_sub_if_data *sdata)
 		bssid = ifibss->bssid;
 	cbss = cfg80211_get_bss(local->hw.wiphy, chan, bssid,
 				ifibss->ssid, ifibss->ssid_len,
-				WLAN_CAPABILITY_IBSS | WLAN_CAPABILITY_PRIVACY,
-				capability);
+				IEEE80211_BSS_TYPE_IBSS,
+				IEEE80211_PRIVACY(ifibss->privacy));
 
 	if (cbss) {
 		struct ieee80211_bss *bss;
@@ -1735,7 +1723,7 @@ int ieee80211_ibss_leave(struct ieee80211_sub_if_data *sdata)
 
 	ieee80211_ibss_disconnect(sdata);
 	ifibss->ssid_len = 0;
-	memset(ifibss->bssid, 0, ETH_ALEN);
+	eth_zero_addr(ifibss->bssid);
 
 	/* remove beacon */
 	kfree(sdata->u.ibss.ie);

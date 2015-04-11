@@ -29,11 +29,11 @@ obj-$(CPTCFG_USB_USBNET)	+= usbnet.o
 #obj-$(CPTCFG_USB_CDC_PHONET)	+= cdc-phonet.o
 #obj-$(CPTCFG_USB_NET_KALMIA)	+= kalmia.o
 #obj-$(CPTCFG_USB_IPHETH)	+= ipheth.o
-obj-$(CPTCFG_USB_SIERRA_NET)	+= sierra_net.o
+#obj-$(CPTCFG_USB_SIERRA_NET)	+= sierra_net.o
 #obj-$(CPTCFG_USB_NET_CX82310_ETH)	+= cx82310_eth.o
-obj-$(CPTCFG_USB_NET_CDC_NCM)	+= cdc_ncm.o
+#obj-$(CPTCFG_USB_NET_CDC_NCM)	+= cdc_ncm.o
 #obj-$(CPTCFG_USB_NET_HUAWEI_CDC_NCM)	+= huawei_cdc_ncm.o
 #obj-$(CPTCFG_USB_VL600)		+= lg-vl600.o
-obj-$(CPTCFG_USB_NET_QMI_WWAN)	+= qmi_wwan.o
-obj-$(CPTCFG_USB_NET_CDC_MBIM)	+= cdc_mbim.o
+#obj-$(CPTCFG_USB_NET_QMI_WWAN)	+= qmi_wwan.o
+#obj-$(CPTCFG_USB_NET_CDC_MBIM)	+= cdc_mbim.o
 

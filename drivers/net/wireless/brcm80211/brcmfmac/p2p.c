@@ -21,12 +21,12 @@
 #include <brcmu_wifi.h>
 #include <brcmu_utils.h>
 #include <defs.h>
-#include <dhd.h>
-#include <dhd_dbg.h>
+#include "core.h"
+#include "debug.h"
 #include "fwil.h"
 #include "fwil_types.h"
 #include "p2p.h"
-#include "wl_cfg80211.h"
+#include "cfg80211.h"
 
 /* parameters used for p2p escan */
 #define P2PAPI_SCAN_NPROBES 1
@@ -440,8 +440,11 @@ static int brcmf_p2p_set_firmware(struct brcmf_if *ifp, u8 *p2p_mac)
 
 	/* In case of COB type, firmware has default mac address
 	 * After Initializing firmware, we have to set current mac address to
-	 * firmware for P2P device address
+	 * firmware for P2P device address. This must be done with discovery
+	 * disabled.
 	 */
+	brcmf_fil_iovar_int_set(ifp, "p2p_disc", 0);
+
 	ret = brcmf_fil_iovar_data_set(ifp, "p2p_da_override", p2p_mac,
 				       ETH_ALEN);
 	if (ret)
@@ -694,7 +697,7 @@ static s32 brcmf_p2p_escan(struct brcmf_p2p_info *p2p, u32 num_chans,
 	else
 		sparams->scan_type = 1;
 
-	memset(&sparams->bssid, 0xFF, ETH_ALEN);
+	eth_broadcast_addr(sparams->bssid);
 	if (ssid.SSID_len)
 		memcpy(sparams->ssid_le.SSID, ssid.SSID, ssid.SSID_len);
 	sparams->ssid_le.SSID_len = cpu_to_le32(ssid.SSID_len);

@@ -26,7 +26,7 @@ config WLCORE_SPI
 	  Say N if unsure.
 
 config WLCORE_SDIO
-	depends on !BACKPORT_KERNEL_3_15
+	depends on !KERNEL_3_15
 	tristate "TI wlcore SDIO support"
 	depends on m
 	depends on WLCORE && MMC

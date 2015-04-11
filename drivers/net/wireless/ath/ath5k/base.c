@@ -99,6 +99,15 @@ static int ath5k_reset(struct ath5k_hw *ah, struct ieee80211_channel *chan,
 
 /* Known SREVs */
 static const struct ath5k_srev_name srev_names[] = {
+#ifdef CPTCFG_ATH5K_AHB
+	{ "5312",	AR5K_VERSION_MAC,	AR5K_SREV_AR5312_R2 },
+	{ "5312",	AR5K_VERSION_MAC,	AR5K_SREV_AR5312_R7 },
+	{ "2313",	AR5K_VERSION_MAC,	AR5K_SREV_AR2313_R8 },
+	{ "2315",	AR5K_VERSION_MAC,	AR5K_SREV_AR2315_R6 },
+	{ "2315",	AR5K_VERSION_MAC,	AR5K_SREV_AR2315_R7 },
+	{ "2317",	AR5K_VERSION_MAC,	AR5K_SREV_AR2317_R1 },
+	{ "2317",	AR5K_VERSION_MAC,	AR5K_SREV_AR2317_R2 },
+#else
 	{ "5210",	AR5K_VERSION_MAC,	AR5K_SREV_AR5210 },
 	{ "5311",	AR5K_VERSION_MAC,	AR5K_SREV_AR5311 },
 	{ "5311A",	AR5K_VERSION_MAC,	AR5K_SREV_AR5311A },
@@ -117,6 +126,7 @@ static const struct ath5k_srev_name srev_names[] = {
 	{ "5418",	AR5K_VERSION_MAC,	AR5K_SREV_AR5418 },
 	{ "2425",	AR5K_VERSION_MAC,	AR5K_SREV_AR2425 },
 	{ "2417",	AR5K_VERSION_MAC,	AR5K_SREV_AR2417 },
+#endif
 	{ "xxxxx",	AR5K_VERSION_MAC,	AR5K_SREV_UNKNOWN },
 	{ "5110",	AR5K_VERSION_RAD,	AR5K_SREV_RAD_5110 },
 	{ "5111",	AR5K_VERSION_RAD,	AR5K_SREV_RAD_5111 },
@@ -132,6 +142,10 @@ static const struct ath5k_srev_name srev_names[] = {
 	{ "5413",	AR5K_VERSION_RAD,	AR5K_SREV_RAD_5413 },
 	{ "5424",	AR5K_VERSION_RAD,	AR5K_SREV_RAD_5424 },
 	{ "5133",	AR5K_VERSION_RAD,	AR5K_SREV_RAD_5133 },
+#ifdef CPTCFG_ATH5K_AHB
+	{ "2316",	AR5K_VERSION_RAD,	AR5K_SREV_RAD_2316 },
+	{ "2317",	AR5K_VERSION_RAD,	AR5K_SREV_RAD_2317 },
+#endif
 	{ "xxxxx",	AR5K_VERSION_RAD,	AR5K_SREV_UNKNOWN },
 };
 
@@ -514,7 +528,7 @@ ath5k_update_bssid_mask_and_opmode(struct ath5k_hw *ah,
 	 * together with the BSSID mask when matching addresses.
 	 */
 	iter_data.hw_macaddr = common->macaddr;
-	memset(&iter_data.mask, 0xff, ETH_ALEN);
+	eth_broadcast_addr(iter_data.mask);
 	iter_data.found_active = false;
 	iter_data.need_set_hw_addr = true;
 	iter_data.opmode = NL80211_IFTYPE_UNSPECIFIED;

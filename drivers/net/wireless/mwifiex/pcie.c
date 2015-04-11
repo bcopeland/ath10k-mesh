@@ -42,6 +42,10 @@ static struct memory_type_mapping mem_type_mapping_tbl[] = {
 	{"DTCM", NULL, 0, 0xF1},
 	{"SQRAM", NULL, 0, 0xF2},
 	{"IRAM", NULL, 0, 0xF3},
+	{"APU", NULL, 0, 0xF4},
+	{"CIU", NULL, 0, 0xF5},
+	{"ICU", NULL, 0, 0xF6},
+	{"MAC", NULL, 0, 0xF7},
 };
 
 static int
@@ -199,7 +203,8 @@ static int mwifiex_pcie_probe(struct pci_dev *pdev,
 		card->pcie.reg = data->reg;
 		card->pcie.blksz_fw_dl = data->blksz_fw_dl;
 		card->pcie.tx_buf_size = data->tx_buf_size;
-		card->pcie.supports_fw_dump = data->supports_fw_dump;
+		card->pcie.can_dump_fw = data->can_dump_fw;
+		card->pcie.can_ext_scan = data->can_ext_scan;
 	}
 
 	if (mwifiex_add_card(card, &add_remove_card_sem, &pcie_ops,
@@ -493,7 +498,8 @@ static int mwifiex_init_rxq_ring(struct mwifiex_adapter *adapter)
 
 	for (i = 0; i < MWIFIEX_MAX_TXRX_BD; i++) {
 		/* Allocate skb here so that firmware can DMA data from it */
-		skb = dev_alloc_skb(MWIFIEX_RX_DATA_BUF_SIZE);
+		skb = mwifiex_alloc_rx_buf(MWIFIEX_RX_DATA_BUF_SIZE,
+					   GFP_KERNEL | GFP_DMA);
 		if (!skb) {
 			dev_err(adapter->dev,
 				"Unable to allocate skb for RX ring.\n");
@@ -1233,7 +1239,6 @@ static int mwifiex_pcie_process_recv_data(struct mwifiex_adapter *adapter)
 	struct sk_buff *skb_tmp = NULL;
 	struct mwifiex_pcie_buf_desc *desc;
 	struct mwifiex_pfu_buf_desc *desc2;
-	unsigned long flags;
 
 	if (!mwifiex_pcie_ok_to_access_hw(adapter))
 		mwifiex_pm_wakeup_card(adapter);
@@ -1285,10 +1290,7 @@ static int mwifiex_pcie_process_recv_data(struct mwifiex_adapter *adapter)
 				card->rxbd_rdptr, wrptr, rx_len);
 			skb_pull(skb_data, INTF_HEADER_LEN);
 			if (adapter->rx_work_enabled) {
-				spin_lock_irqsave(&adapter->rx_q_lock, flags);
 				skb_queue_tail(&adapter->rx_data_q, skb_data);
-				spin_unlock_irqrestore(&adapter->rx_q_lock,
-						       flags);
 				adapter->data_received = true;
 				atomic_inc(&adapter->rx_pending);
 			} else {
@@ -1296,7 +1298,8 @@ static int mwifiex_pcie_process_recv_data(struct mwifiex_adapter *adapter)
 			}
 		}
 
-		skb_tmp = dev_alloc_skb(MWIFIEX_RX_DATA_BUF_SIZE);
+		skb_tmp = mwifiex_alloc_rx_buf(MWIFIEX_RX_DATA_BUF_SIZE,
+					       GFP_KERNEL | GFP_DMA);
 		if (!skb_tmp) {
 			dev_err(adapter->dev,
 				"Unable to allocate skb.\n");
@@ -1952,8 +1955,8 @@ static int mwifiex_prog_fw_w_helper(struct mwifiex_adapter *adapter,
 		offset += txlen;
 	} while (true);
 
-	dev_dbg(adapter->dev, "info:\nFW download over, size %d bytes\n",
-		offset);
+	dev_notice(adapter->dev,
+		   "info: FW download over, size %d bytes\n", offset);
 
 	ret = 0;
 
@@ -2064,6 +2067,7 @@ static void mwifiex_interrupt_status(struct mwifiex_adapter *adapter)
 				 * state until cookie is set */
 				adapter->ps_state = PS_STATE_AWAKE;
 				adapter->pm_wakeup_fw_try = false;
+				del_timer(&adapter->wakeup_timer);
 		}
 	}
 }
@@ -2243,8 +2247,8 @@ mwifiex_pcie_rdwr_firmware(struct mwifiex_adapter *adapter, u8 doneflag)
 		if (ctrl_data != FW_DUMP_HOST_READY) {
 			dev_info(adapter->dev,
 				 "The ctrl reg was changed, re-try again!\n");
-			mwifiex_write_reg(adapter, reg->fw_dump_ctrl,
-					  FW_DUMP_HOST_READY);
+			ret = mwifiex_write_reg(adapter, reg->fw_dump_ctrl,
+						FW_DUMP_HOST_READY);
 			if (ret) {
 				dev_err(adapter->dev, "PCIE write err\n");
 				return RDWR_STATUS_FAILURE;
@@ -2266,9 +2270,10 @@ static void mwifiex_pcie_fw_dump_work(struct mwifiex_adapter *adapter)
 	u8 *dbg_ptr, *end_ptr, dump_num, idx, i, read_reg, doneflag = 0;
 	enum rdwr_status stat;
 	u32 memory_size;
+	int ret;
 	static char *env[] = { "DRIVER=mwifiex_pcie", "EVENT=fw_dump", NULL };
 
-	if (!card->pcie.supports_fw_dump)
+	if (!card->pcie.can_dump_fw)
 		return;
 
 	for (idx = 0; idx < ARRAY_SIZE(mem_type_mapping_tbl); idx++) {
@@ -2309,6 +2314,12 @@ static void mwifiex_pcie_fw_dump_work(struct mwifiex_adapter *adapter)
 
 		if (memory_size == 0) {
 			dev_info(adapter->dev, "Firmware dump Finished!\n");
+			ret = mwifiex_write_reg(adapter, creg->fw_dump_ctrl,
+						FW_DUMP_READ_DONE);
+			if (ret) {
+				dev_err(adapter->dev, "PCIE write err\n");
+				goto done;
+			}
 			break;
 		}
 
@@ -2337,11 +2348,13 @@ static void mwifiex_pcie_fw_dump_work(struct mwifiex_adapter *adapter)
 			reg_end = creg->fw_dump_end;
 			for (reg = reg_start; reg <= reg_end; reg++) {
 				mwifiex_read_reg_byte(adapter, reg, dbg_ptr);
-				if (dbg_ptr < end_ptr)
+				if (dbg_ptr < end_ptr) {
 					dbg_ptr++;
-				else
+				} else {
 					dev_err(adapter->dev,
 						"Allocated buf not enough\n");
+					goto done;
+				}
 			}
 
 			if (stat != RDWR_STATUS_DONE)
@@ -2553,6 +2566,7 @@ static int mwifiex_register_dev(struct mwifiex_adapter *adapter)
 	adapter->mem_type_mapping_tbl = mem_type_mapping_tbl;
 	adapter->num_mem_types = ARRAY_SIZE(mem_type_mapping_tbl);
 	strcpy(adapter->fw_name, card->pcie.firmware);
+	adapter->ext_scan = card->pcie.can_ext_scan;
 
 	return 0;
 }

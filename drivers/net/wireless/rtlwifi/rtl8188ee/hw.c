@@ -89,7 +89,9 @@ static void _rtl88ee_return_beacon_queue_skb(struct ieee80211_hw *hw)
 	struct rtl_priv *rtlpriv = rtl_priv(hw);
 	struct rtl_pci *rtlpci = rtl_pcidev(rtl_pcipriv(hw));
 	struct rtl8192_tx_ring *ring = &rtlpci->tx_ring[BEACON_QUEUE];
+	unsigned long flags;
 
+	spin_lock_irqsave(&rtlpriv->locks.irq_th_lock, flags);
 	while (skb_queue_len(&ring->queue)) {
 		struct rtl_tx_desc *entry = &ring->desc[ring->idx];
 		struct sk_buff *skb = __skb_dequeue(&ring->queue);
@@ -101,6 +103,7 @@ static void _rtl88ee_return_beacon_queue_skb(struct ieee80211_hw *hw)
 		kfree_skb(skb);
 		ring->idx = (ring->idx + 1) % ring->entries;
 	}
+	spin_unlock_irqrestore(&rtlpriv->locks.irq_th_lock, flags);
 }
 
 static void _rtl88ee_disable_bcn_sub_func(struct ieee80211_hw *hw)
@@ -563,7 +566,7 @@ void rtl88ee_set_hw_reg(struct ieee80211_hw *hw, u8 variable, u8 *val)
 				acm_ctrl &= (~ACMHW_VIQEN);
 				break;
 			case AC3_VO:
-				acm_ctrl &= (~ACMHW_BEQEN);
+				acm_ctrl &= (~ACMHW_VOQEN);
 				break;
 			default:
 				RT_TRACE(rtlpriv, COMP_ERR, DBG_EMERG,

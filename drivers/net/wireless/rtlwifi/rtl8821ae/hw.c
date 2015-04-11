@@ -48,7 +48,9 @@ static void _rtl8821ae_return_beacon_queue_skb(struct ieee80211_hw *hw)
 	struct rtl_priv *rtlpriv = rtl_priv(hw);
 	struct rtl_pci *rtlpci = rtl_pcidev(rtl_pcipriv(hw));
 	struct rtl8192_tx_ring *ring = &rtlpci->tx_ring[BEACON_QUEUE];
+	unsigned long flags;
 
+	spin_lock_irqsave(&rtlpriv->locks.irq_th_lock, flags);
 	while (skb_queue_len(&ring->queue)) {
 		struct rtl_tx_desc *entry = &ring->desc[ring->idx];
 		struct sk_buff *skb = __skb_dequeue(&ring->queue);
@@ -60,6 +62,7 @@ static void _rtl8821ae_return_beacon_queue_skb(struct ieee80211_hw *hw)
 		kfree_skb(skb);
 		ring->idx = (ring->idx + 1) % ring->entries;
 	}
+	spin_unlock_irqrestore(&rtlpriv->locks.irq_th_lock, flags);
 }
 
 static void _rtl8821ae_set_bcn_ctrl_reg(struct ieee80211_hw *hw,
@@ -664,7 +667,7 @@ void rtl8821ae_set_hw_reg(struct ieee80211_hw *hw, u8 variable, u8 *val)
 				acm_ctrl &= (~ACMHW_VIQEN);
 				break;
 			case AC3_VO:
-				acm_ctrl &= (~ACMHW_BEQEN);
+				acm_ctrl &= (~ACMHW_VOQEN);
 				break;
 			default:
 				RT_TRACE(rtlpriv, COMP_ERR, DBG_LOUD,
@@ -1512,7 +1515,7 @@ static bool _rtl8821ae_dynamic_rqpn(struct ieee80211_hw *hw, u32 boundary,
 				      (u8 *)(&support_remote_wakeup));
 
 	RT_TRACE(rtlpriv, COMP_INIT, DBG_LOUD,
-		 "boundary=0x%#X, NPQ_RQPNValue=0x%#X, RQPNValue=0x%#X\n",
+		 "boundary=%#X, NPQ_RQPNValue=%#X, RQPNValue=%#X\n",
 		  boundary, npq_rqpn_value, rqpn_val);
 
 	/* stop PCIe DMA
@@ -3669,8 +3672,9 @@ static void rtl8821ae_update_hal_rate_mask(struct ieee80211_hw *hw,
 		mac->opmode == NL80211_IFTYPE_ADHOC)
 		macid = sta->aid + 1;
 	if (wirelessmode == WIRELESS_MODE_N_5G ||
-	    wirelessmode == WIRELESS_MODE_AC_5G)
-		ratr_bitmap = sta->supp_rates[NL80211_BAND_5GHZ];
+	    wirelessmode == WIRELESS_MODE_AC_5G ||
+	    wirelessmode == WIRELESS_MODE_A)
+		ratr_bitmap = sta->supp_rates[NL80211_BAND_5GHZ] << 4;
 	else
 		ratr_bitmap = sta->supp_rates[NL80211_BAND_2GHZ];
 
