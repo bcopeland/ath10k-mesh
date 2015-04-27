@@ -538,7 +538,7 @@ int ath10k_htt_tx(struct ath10k_htt *htt, struct sk_buff *msdu)
 	 */
 	if (skb_cb->htt.is_raw)
 		skb_cb->htt.txbuf->cmd_tx.len = __cpu_to_le16(msdu->len -
-							ieee80211_hdrlen(fc) +
+							sizeof(struct ieee80211_hdr_3addr) +
 							sizeof(struct ethhdr));
 	else
 		skb_cb->htt.txbuf->cmd_tx.len = __cpu_to_le16(msdu->len);
