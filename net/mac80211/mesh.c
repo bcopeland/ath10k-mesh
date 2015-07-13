@@ -94,6 +94,9 @@ bool mesh_matches_local(struct ieee80211_sub_if_data *sdata,
 	ieee80211_ht_oper_to_chandef(sdata->vif.bss_conf.chandef.chan,
 				     ie->ht_operation, &sta_chan_def);
 
+	ieee80211_vht_oper_to_chandef(sdata->vif.bss_conf.chandef.chan,
+				      ie->vht_operation, &sta_chan_def);
+
 	if (!cfg80211_chandef_compatible(&sdata->vif.bss_conf.chandef,
 					 &sta_chan_def))
 		return false;
@@ -467,6 +470,68 @@ int mesh_add_ht_oper_ie(struct ieee80211_sub_if_data *sdata,
 	return 0;
 }
 
+int mesh_add_vht_cap_ie(struct ieee80211_sub_if_data *sdata,
+			struct sk_buff *skb)
+{
+	struct ieee80211_local *local = sdata->local;
+	enum ieee80211_band band = ieee80211_get_sdata_band(sdata);
+	struct ieee80211_supported_band *sband;
+	u8 *pos;
+
+	sband = local->hw.wiphy->bands[band];
+	if (!sband->vht_cap.vht_supported ||
+	    sdata->vif.bss_conf.chandef.width == NL80211_CHAN_WIDTH_20_NOHT ||
+	    sdata->vif.bss_conf.chandef.width == NL80211_CHAN_WIDTH_5 ||
+	    sdata->vif.bss_conf.chandef.width == NL80211_CHAN_WIDTH_10)
+		return 0;
+
+	if (skb_tailroom(skb) < 2 + sizeof(struct ieee80211_vht_cap))
+		return -ENOMEM;
+
+	pos = skb_put(skb, 2 + sizeof(struct ieee80211_vht_cap));
+	ieee80211_ie_build_vht_cap(pos, &sband->vht_cap, sband->vht_cap.cap);
+
+	return 0;
+}
+
+int mesh_add_vht_oper_ie(struct ieee80211_sub_if_data *sdata,
+			 struct sk_buff *skb)
+{
+	struct ieee80211_local *local = sdata->local;
+	struct ieee80211_chanctx_conf *chanctx_conf;
+	struct ieee80211_channel *channel;
+	struct ieee80211_supported_band *sband;
+	struct ieee80211_sta_vht_cap *vht_cap;
+	u8 *pos;
+
+	rcu_read_lock();
+	chanctx_conf = rcu_dereference(sdata->vif.chanctx_conf);
+	if (WARN_ON(!chanctx_conf)) {
+		rcu_read_unlock();
+		return -EINVAL;
+	}
+	channel = chanctx_conf->def.chan;
+	rcu_read_unlock();
+
+	sband = local->hw.wiphy->bands[channel->band];
+	vht_cap = &sband->vht_cap;
+
+	if (!vht_cap->vht_supported ||
+	    sdata->vif.bss_conf.chandef.width == NL80211_CHAN_WIDTH_20_NOHT ||
+	    sdata->vif.bss_conf.chandef.width == NL80211_CHAN_WIDTH_5 ||
+	    sdata->vif.bss_conf.chandef.width == NL80211_CHAN_WIDTH_10)
+		return 0;
+
+	if (skb_tailroom(skb) < 2 + sizeof(struct ieee80211_vht_operation))
+		return -ENOMEM;
+
+	pos = skb_put(skb, 2 + sizeof(struct ieee80211_vht_operation));
+	ieee80211_ie_build_vht_oper(pos, vht_cap,
+				    &sdata->vif.bss_conf.chandef);
+
+	return 0;
+}
+
 static void ieee80211_mesh_path_timer(unsigned long data)
 {
 	struct ieee80211_sub_if_data *sdata =
@@ -637,6 +702,8 @@ ieee80211_mesh_build_beacon(struct ieee80211_if_mesh *ifmsh)
 		   2 + ifmsh->mesh_id_len +
 		   2 + sizeof(struct ieee80211_meshconf_ie) +
 		   2 + sizeof(__le16) + /* awake window */
+		   2 + sizeof(struct ieee80211_vht_cap) +
+		   2 + sizeof(struct ieee80211_vht_operation) +
 		   ifmsh->ie_len;
 
 	bcn = kzalloc(sizeof(*bcn) + head_len + tail_len, GFP_KERNEL);
@@ -717,6 +784,8 @@ ieee80211_mesh_build_beacon(struct ieee80211_if_mesh *ifmsh)
 	    mesh_add_meshid_ie(sdata, skb) ||
 	    mesh_add_meshconf_ie(sdata, skb) ||
 	    mesh_add_awake_window_ie(sdata, skb) ||
+	    mesh_add_vht_cap_ie(sdata, skb) ||
+	    mesh_add_vht_oper_ie(sdata, skb) ||
 	    mesh_add_vendor_ies(sdata, skb))
 		goto out_free;
 
