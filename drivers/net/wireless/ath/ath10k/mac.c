@@ -1405,9 +1405,6 @@ static void ath10k_peer_assoc_h_basic(struct ath10k *ar,
 	arg->peer_listen_intval = ath10k_peer_assoc_h_listen_intval(ar, vif);
 	arg->peer_num_spatial_streams = 1;
 	arg->peer_caps = vif->bss_conf.assoc_capability;
-
-	/* mesh doesn't set aid correctly */
-	arg->peer_aid = 1;
 }
 
 static void ath10k_peer_assoc_h_crypto(struct ath10k *ar,
