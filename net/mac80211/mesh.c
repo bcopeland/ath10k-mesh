@@ -439,8 +439,6 @@ int mesh_add_ht_oper_ie(struct ieee80211_sub_if_data *sdata,
 	struct ieee80211_local *local = sdata->local;
 	struct ieee80211_chanctx_conf *chanctx_conf;
 	struct ieee80211_channel *channel;
-	enum nl80211_channel_type channel_type =
-		cfg80211_get_chandef_type(&sdata->vif.bss_conf.chandef);
 	struct ieee80211_supported_band *sband;
 	struct ieee80211_sta_ht_cap *ht_cap;
 	u8 *pos;
@@ -457,7 +455,10 @@ int mesh_add_ht_oper_ie(struct ieee80211_sub_if_data *sdata,
 	sband = local->hw.wiphy->bands[channel->band];
 	ht_cap = &sband->ht_cap;
 
-	if (!ht_cap->ht_supported || channel_type == NL80211_CHAN_NO_HT)
+	if (!ht_cap->ht_supported ||
+	    sdata->vif.bss_conf.chandef.width == NL80211_CHAN_WIDTH_20_NOHT ||
+	    sdata->vif.bss_conf.chandef.width == NL80211_CHAN_WIDTH_5 ||
+	    sdata->vif.bss_conf.chandef.width == NL80211_CHAN_WIDTH_10)
 		return 0;
 
 	if (skb_tailroom(skb) < 2 + sizeof(struct ieee80211_ht_operation))
