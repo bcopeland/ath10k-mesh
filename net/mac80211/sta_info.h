@@ -297,6 +297,7 @@ struct sta_ampdu_mlme {
  * @timer_to_tid: identity mapping to ID timers
  * @llid: Local link ID
  * @plid: Peer link ID
+ * @aid: local aid supplied by peer
  * @reason: Cancel reason on PLINK_HOLDING state
  * @plink_retries: Retries in establishment
  * @plink_state: peer link state
@@ -422,6 +423,7 @@ struct sta_info {
 	 */
 	u16 llid;
 	u16 plid;
+	u16 aid;
 	u16 reason;
 	u8 plink_retries;
 	enum nl80211_plink_state plink_state;

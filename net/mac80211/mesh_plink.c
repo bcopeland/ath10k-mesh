@@ -13,6 +13,7 @@
 #include "rate.h"
 #include "mesh.h"
 
+#define PLINK_CNF_AID(mgmt) ((mgmt)->u.action.u.self_prot.variable + 2)
 #define PLINK_GET_LLID(p) (p + 2)
 #define PLINK_GET_PLID(p) (p + 4)
 
@@ -202,6 +203,7 @@ static u32 mesh_set_ht_prot_mode(struct ieee80211_sub_if_data *sdata)
 }
 
 static int mesh_plink_frame_tx(struct ieee80211_sub_if_data *sdata,
+			       struct sta_info *sta,
 			       enum ieee80211_self_protected_actioncode action,
 			       u8 *da, u16 llid, u16 plid, u16 reason)
 {
@@ -253,7 +255,7 @@ static int mesh_plink_frame_tx(struct ieee80211_sub_if_data *sdata,
 		if (action == WLAN_SP_MESH_PEERING_CONFIRM) {
 			/* AID */
 			pos = skb_put(skb, 2);
-			put_unaligned_le16(plid, pos);
+			put_unaligned_le16(sta->sta.aid, pos);
 		}
 		if (ieee80211_add_srates_ie(sdata, skb, true, band) ||
 		    ieee80211_add_ext_srates_ie(sdata, skb, true, band) ||
@@ -366,7 +368,7 @@ u32 mesh_plink_deactivate(struct sta_info *sta)
 	spin_lock_bh(&sta->lock);
 	changed = __mesh_plink_deactivate(sta);
 	sta->reason = WLAN_REASON_MESH_PEER_CANCELED;
-	mesh_plink_frame_tx(sdata, WLAN_SP_MESH_PEERING_CLOSE,
+	mesh_plink_frame_tx(sdata, sta, WLAN_SP_MESH_PEERING_CLOSE,
 			    sta->sta.addr, sta->llid, sta->plid,
 			    sta->reason);
 	spin_unlock_bh(&sta->lock);
@@ -620,7 +622,7 @@ static void mesh_plink_timer(unsigned long data)
 	}
 	spin_unlock_bh(&sta->lock);
 	if (action)
-		mesh_plink_frame_tx(sdata, action, sta->sta.addr,
+		mesh_plink_frame_tx(sdata, sta, action, sta->sta.addr,
 				    sta->llid, sta->plid, reason);
 }
 
@@ -691,7 +693,7 @@ u32 mesh_plink_open(struct sta_info *sta)
 	/* set the non-peer mode to active during peering */
 	changed = ieee80211_mps_local_status_update(sdata);
 
-	mesh_plink_frame_tx(sdata, WLAN_SP_MESH_PEERING_OPEN,
+	mesh_plink_frame_tx(sdata, sta, WLAN_SP_MESH_PEERING_OPEN,
 			    sta->sta.addr, sta->llid, 0, 0);
 	return changed;
 }
@@ -874,12 +876,12 @@ static u32 mesh_plink_fsm(struct ieee80211_sub_if_data *sdata,
 	}
 	spin_unlock_bh(&sta->lock);
 	if (action) {
-		mesh_plink_frame_tx(sdata, action, sta->sta.addr,
+		mesh_plink_frame_tx(sdata, sta, action, sta->sta.addr,
 				    sta->llid, sta->plid, sta->reason);
 
 		/* also send confirm in open case */
 		if (action == WLAN_SP_MESH_PEERING_OPEN) {
-			mesh_plink_frame_tx(sdata,
+			mesh_plink_frame_tx(sdata, sta,
 					    WLAN_SP_MESH_PEERING_CONFIRM,
 					    sta->sta.addr, sta->llid,
 					    sta->plid, 0);
@@ -1069,8 +1071,9 @@ mesh_process_plink_frame(struct ieee80211_sub_if_data *sdata,
 			goto unlock_rcu;
 		}
 		sta->plid = plid;
+		sta->sta.aid = plid;
 	} else if (!sta && event == OPN_RJCT) {
-		mesh_plink_frame_tx(sdata, WLAN_SP_MESH_PEERING_CLOSE,
+		mesh_plink_frame_tx(sdata, NULL, WLAN_SP_MESH_PEERING_CLOSE,
 				    mgmt->sa, 0, plid,
 				    WLAN_REASON_MESH_CONFIG);
 		goto unlock_rcu;
@@ -1079,9 +1082,15 @@ mesh_process_plink_frame(struct ieee80211_sub_if_data *sdata,
 		goto unlock_rcu;
 	}
 
-	/* 802.11-2012 13.3.7.2 - update plid on CNF if not set */
-	if (!sta->plid && event == CNF_ACPT)
-		sta->plid = plid;
+	if (event == CNF_ACPT) {
+		/* 802.11-2012 13.3.7.2 - update plid on CNF if not set */
+		if (!sta->plid) {
+			sta->plid = plid;
+			sta->sta.aid = sta->plid;
+		}
+
+		sta->aid = get_unaligned_le16(PLINK_CNF_AID(mgmt));
+	}
 
 	changed |= mesh_plink_fsm(sdata, sta, event);
 
