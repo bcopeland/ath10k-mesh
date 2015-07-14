@@ -94,8 +94,10 @@ bool mesh_matches_local(struct ieee80211_sub_if_data *sdata,
 	ieee80211_ht_oper_to_chandef(sdata->vif.bss_conf.chandef.chan,
 				     ie->ht_operation, &sta_chan_def);
 
+#if 0
 	ieee80211_vht_oper_to_chandef(sdata->vif.bss_conf.chandef.chan,
 				      ie->vht_operation, &sta_chan_def);
+#endif
 
 	if (!cfg80211_chandef_compatible(&sdata->vif.bss_conf.chandef,
 					 &sta_chan_def))
