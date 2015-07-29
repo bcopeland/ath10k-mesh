@@ -558,8 +558,6 @@ int ath10k_htt_tx(struct ath10k_htt *htt, struct sk_buff *msdu)
 	trace_ath10k_tx_hdr(ar, msdu->data, msdu->len);
 	trace_ath10k_tx_payload(ar, msdu->data, msdu->len);
 
-	printk(KERN_DEBUG "tx %pM seq %d\n", hdr->addr1, le16_to_cpu(hdr->seq_ctrl) >> 4);
-
 	sg_items[0].transfer_id = 0;
 	sg_items[0].transfer_context = NULL;
 	sg_items[0].vaddr = &skb_cb->htt.txbuf->htc_hdr;

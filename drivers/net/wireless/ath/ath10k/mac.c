@@ -373,7 +373,6 @@ static int ath10k_peer_create(struct ath10k *ar, u32 vdev_id, const u8 *addr)
 	if (ar->num_peers >= ar->max_num_peers)
 		return -ENOBUFS;
 
-    printk(KERN_DEBUG "XXX trying to create peer %pM\n", addr);
 	ret = ath10k_wmi_peer_create(ar, vdev_id, addr);
 	if (ret) {
 		ath10k_warn(ar, "failed to create wmi peer %pM on vdev %i: %i\n",
@@ -381,7 +380,6 @@ static int ath10k_peer_create(struct ath10k *ar, u32 vdev_id, const u8 *addr)
 		return ret;
 	}
 
-    printk(KERN_DEBUG "XXX waiting for peer create %pM\n", addr);
 	ret = ath10k_wait_for_peer_created(ar, vdev_id, addr);
 	if (ret) {
 		ath10k_warn(ar, "failed to wait for created wmi peer %pM on vdev %i: %i\n",
@@ -389,7 +387,6 @@ static int ath10k_peer_create(struct ath10k *ar, u32 vdev_id, const u8 *addr)
 		return ret;
 	}
 
-    printk(KERN_DEBUG "XXX peer %pM added\n", addr);
 	ar->num_peers++;
 
 	return 0;
@@ -5019,7 +5016,7 @@ static void ath10k_sta_rc_update(struct ieee80211_hw *hw,
 			bw = WMI_PEER_CHWIDTH_80MHZ;
 			break;
 		case IEEE80211_STA_RX_BW_160:
-			ath10k_warn(ar, "Invalid bandwith %d in rc update for %pM\n",
+			ath10k_warn(ar, "Invalid bandwidth %d in rc update for %pM\n",
 				    sta->bandwidth, sta->addr);
 			bw = WMI_PEER_CHWIDTH_20MHZ;
 			break;
