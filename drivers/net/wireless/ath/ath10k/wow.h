@@ -22,7 +22,7 @@ struct ath10k_wow {
 	struct wiphy_wowlan_support wowlan_support;
 };
 
-#ifdef CONFIG_PM
+#ifdef CPTCFG_PM
 
 int ath10k_wow_init(struct ath10k *ar);
 int ath10k_wow_op_suspend(struct ieee80211_hw *hw,
@@ -36,5 +36,5 @@ static inline int ath10k_wow_init(struct ath10k *ar)
 	return 0;
 }
 
-#endif /* CONFIG_PM */
+#endif /* CPTCFG_PM */
 #endif /* _WOW_H_ */

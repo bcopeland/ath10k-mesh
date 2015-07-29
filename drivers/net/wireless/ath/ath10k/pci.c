@@ -2050,7 +2050,7 @@ static void ath10k_pci_hif_power_down(struct ath10k *ar)
 	 */
 }
 
-#ifdef CONFIG_PM
+#ifdef CPTCFG_PM
 
 static int ath10k_pci_hif_suspend(struct ath10k *ar)
 {
@@ -2101,7 +2101,7 @@ static const struct ath10k_hif_ops ath10k_pci_hif_ops = {
 	.power_down		= ath10k_pci_hif_power_down,
 	.read32			= ath10k_pci_read32,
 	.write32		= ath10k_pci_write32,
-#ifdef CONFIG_PM
+#ifdef CPTCFG_PM
 	.suspend		= ath10k_pci_hif_suspend,
 	.resume			= ath10k_pci_hif_resume,
 #endif
