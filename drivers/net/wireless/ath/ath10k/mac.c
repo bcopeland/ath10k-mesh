@@ -2706,6 +2706,52 @@ static void ath10k_mac_tx(struct ath10k *ar, struct sk_buff *skb)
 	}
 }
 
+static void ath10k_tx_htt(struct ath10k *ar, struct sk_buff *skb)
+{
+	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
+	int ret = 0;
+
+	if (ar->htt.target_version_major >= 3) {
+		/* Since HTT 3.0 there is no separate mgmt tx command */
+		ret = ath10k_htt_tx(&ar->htt, skb);
+		goto exit;
+	}
+
+	if (ieee80211_is_mgmt(hdr->frame_control)) {
+		if (test_bit(ATH10K_FW_FEATURE_HAS_WMI_MGMT_TX,
+			     ar->fw_features)) {
+			if (skb_queue_len(&ar->wmi_mgmt_tx_queue) >=
+			    ATH10K_MAX_NUM_MGMT_PENDING) {
+				ath10k_warn(ar, "reached WMI management transmit queue limit\n");
+				ret = -EBUSY;
+				goto exit;
+			}
+
+			skb_queue_tail(&ar->wmi_mgmt_tx_queue, skb);
+			ieee80211_queue_work(ar->hw, &ar->wmi_mgmt_tx_work);
+		} else {
+			ret = ath10k_htt_mgmt_tx(&ar->htt, skb);
+		}
+	} else if (!test_bit(ATH10K_FW_FEATURE_HAS_WMI_MGMT_TX,
+			     ar->fw_features) &&
+		   ieee80211_is_nullfunc(hdr->frame_control)) {
+		/* FW does not report tx status properly for NullFunc frames
+		 * unless they are sent through mgmt tx path. mac80211 sends
+		 * those frames when it detects link/beacon loss and depends
+		 * on the tx status to be correct. */
+		ret = ath10k_htt_mgmt_tx(&ar->htt, skb);
+	} else {
+		ret = ath10k_htt_tx(&ar->htt, skb);
+	}
+
+exit:
+	if (ret) {
+		ath10k_warn(ar, "failed to transmit packet, dropping: %d\n",
+			    ret);
+		ieee80211_free_txskb(ar->hw, skb);
+	}
+}
+
 void ath10k_offchan_tx_purge(struct ath10k *ar)
 {
 	struct sk_buff *skb;
@@ -2771,7 +2817,7 @@ void ath10k_offchan_tx_work(struct work_struct *work)
 		ar->offchan_tx_skb = skb;
 		spin_unlock_bh(&ar->data_lock);
 
-		ath10k_mac_tx(ar, skb);
+		ath10k_tx_htt(ar, skb);
 
 		ret = wait_for_completion_timeout(&ar->offchan_tx_completed,
 						  3 * HZ);
@@ -3052,7 +3098,7 @@ static void ath10k_tx(struct ieee80211_hw *hw,
 		}
 	}
 
-	ath10k_mac_tx(ar, skb);
+	ath10k_tx_htt(ar, skb);
 }
 
 /* Must not be called with conf_mutex held as workers can use that also. */
