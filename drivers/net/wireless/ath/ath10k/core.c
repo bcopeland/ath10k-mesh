@@ -768,7 +768,7 @@ static int ath10k_core_fetch_firmware_files(struct ath10k *ar)
 	/* calibration file is optional, don't check for any errors */
 	ath10k_fetch_cal_file(ar);
 
-	ath10k_core_fetch_board_file(ar);
+	ret = ath10k_core_fetch_board_file(ar);
 	if (ret) {
 		ath10k_err(ar, "failed to fetch board file: %d\n", ret);
 		return ret;
