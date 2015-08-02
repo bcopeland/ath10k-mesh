@@ -2560,6 +2560,7 @@ ath10k_tx_h_get_txmode(struct ath10k *ar, struct ieee80211_vif *vif,
 	    !test_bit(ATH10K_FW_FEATURE_HAS_WMI_MGMT_TX, ar->fw_features))
 		return ATH10K_HW_TXRX_MGMT;
 
+	return ATH10K_HW_TXRX_RAW;
 	return ATH10K_HW_TXRX_NATIVE_WIFI;
 }
 
@@ -2819,7 +2820,7 @@ void ath10k_offchan_tx_work(struct work_struct *work)
 		ar->offchan_tx_skb = skb;
 		spin_unlock_bh(&ar->data_lock);
 
-		ath10k_tx_htt(ar, skb);
+		ath10k_mac_tx(ar, skb);
 
 		ret = wait_for_completion_timeout(&ar->offchan_tx_completed,
 						  3 * HZ);
@@ -3058,7 +3059,6 @@ static void ath10k_tx(struct ieee80211_hw *hw,
 	ATH10K_SKB_CB(skb)->is_protected = ieee80211_has_protected(fc);
 
 	ATH10K_SKB_CB(skb)->htt.is_raw = true;
-	ATH10K_SKB_CB(skb)->txmode = ATH10K_HW_TXRX_RAW;
 
 	switch (ATH10K_SKB_CB(skb)->txmode) {
 	case ATH10K_HW_TXRX_MGMT:
@@ -3100,7 +3100,7 @@ static void ath10k_tx(struct ieee80211_hw *hw,
 		}
 	}
 
-	ath10k_tx_htt(ar, skb);
+	ath10k_mac_tx(ar, skb);
 }
 
 /* Must not be called with conf_mutex held as workers can use that also. */
