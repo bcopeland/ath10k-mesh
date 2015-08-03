@@ -486,7 +486,6 @@ int ath10k_htt_tx(struct ath10k_htt *htt, struct sk_buff *msdu)
 	struct ath10k_skb_cb *skb_cb = ATH10K_SKB_CB(msdu);
 	struct ath10k_hif_sg_item sg_items[2];
 	struct htt_data_tx_desc_frag *frags;
-	__le16 fc = hdr->frame_control;
 	u8 vdev_id = skb_cb->vdev_id;
 	u8 tid = skb_cb->htt.tid;
 	int prefetch_len;
@@ -601,7 +600,7 @@ int ath10k_htt_tx(struct ath10k_htt *htt, struct sk_buff *msdu)
 	 * frame. If length here isn't properly fixed up frames xmited on the
 	 * air contain garbage at the end and have incorrect length.
 	 */
-	if (skb_cb->htt.is_raw)
+	if (skb_cb->txmode == ATH10K_HW_TXRX_RAW)
 		skb_cb->htt.txbuf->cmd_tx.len = __cpu_to_le16(msdu->len -
 							sizeof(struct ieee80211_hdr_3addr) +
 							sizeof(struct ethhdr));

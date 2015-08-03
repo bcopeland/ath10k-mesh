@@ -3728,13 +3728,11 @@ static void ath10k_tx(struct ieee80211_hw *hw,
 	ATH10K_SKB_CB(skb)->txmode = ath10k_tx_h_get_txmode(ar, vif, sta, skb);
 	ATH10K_SKB_CB(skb)->is_protected = ieee80211_has_protected(fc);
 
-	ATH10K_SKB_CB(skb)->htt.is_raw = true;
-
 	switch (ATH10K_SKB_CB(skb)->txmode) {
 	case ATH10K_HW_TXRX_MGMT:
 	case ATH10K_HW_TXRX_NATIVE_WIFI:
 	case ATH10K_HW_TXRX_RAW:
-		if (!ATH10K_SKB_CB(skb)->htt.is_raw)
+		if (!ATH10K_SKB_CB(skb)->txmode == ATH10K_HW_TXRX_RAW)
 			ath10k_tx_h_nwifi(hw, skb);
 		ath10k_tx_h_add_p2p_noa_ie(ar, vif, skb);
 		ath10k_tx_h_seq_no(vif, skb);
