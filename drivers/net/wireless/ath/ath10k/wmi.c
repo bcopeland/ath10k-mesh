@@ -1632,8 +1632,6 @@ int ath10k_wmi_cmd_send_nowait(struct ath10k *ar, struct sk_buff *skb,
 	if (skb_push(skb, sizeof(struct wmi_cmd_hdr)) == NULL)
 		return -ENOMEM;
 
-    printk(KERN_DEBUG "XXX sending WMI cmd nowait %d\n", cmd_id);
-
 	cmd |= SM(cmd_id, WMI_CMD_HDR_CMD_ID);
 
 	cmd_hdr = (struct wmi_cmd_hdr *)skb->data;
@@ -1725,8 +1723,6 @@ int ath10k_wmi_cmd_send(struct ath10k *ar, struct sk_buff *skb, u32 cmd_id)
 	int ret = -EOPNOTSUPP;
 
 	might_sleep();
-
-    printk(KERN_DEBUG "XXX sending WMI cmd %d\n", cmd_id);
 
 	if (cmd_id == WMI_CMD_UNSUPPORTED) {
 		ath10k_warn(ar, "wmi command %d is not supported by firmware\n",

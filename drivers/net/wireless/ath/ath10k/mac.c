@@ -3395,12 +3395,10 @@ static void ath10k_tx_htt(struct ath10k *ar, struct sk_buff *skb)
 				ret = -EBUSY;
 				goto exit;
 			}
-			printk(KERN_DEBUG "XXX wmi-mgmt\n");
 
 			skb_queue_tail(&ar->wmi_mgmt_tx_queue, skb);
 			ieee80211_queue_work(ar->hw, &ar->wmi_mgmt_tx_work);
 		} else {
-			printk(KERN_DEBUG "XXX htt-mgmt\n");
 			ret = ath10k_htt_mgmt_tx(&ar->htt, skb);
 		}
 	} else if (!test_bit(ATH10K_FW_FEATURE_HAS_WMI_MGMT_TX,
