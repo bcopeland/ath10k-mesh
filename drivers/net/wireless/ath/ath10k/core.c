@@ -31,16 +31,19 @@
 #include "wmi-ops.h"
 
 unsigned int ath10k_debug_mask;
+static unsigned int ath10k_cryptmode_param;
 static bool uart_print;
 static bool skip_otp;
 
 module_param_named(debug_mask, ath10k_debug_mask, uint, 0644);
+module_param_named(cryptmode, ath10k_cryptmode_param, uint, 0644);
 module_param(uart_print, bool, 0644);
 module_param(skip_otp, bool, 0644);
 
 MODULE_PARM_DESC(debug_mask, "Debugging mask");
 MODULE_PARM_DESC(uart_print, "Uart target debugging");
 MODULE_PARM_DESC(skip_otp, "Skip otp failure for calibration in testmode");
+MODULE_PARM_DESC(cryptmode, "Crypto mode: 0-hardware, 1-software");
 
 static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 	{
@@ -1071,6 +1074,26 @@ static int ath10k_core_init_firmware_features(struct ath10k *ar)
 		return -EINVAL;
 	}
 
+	switch (ath10k_cryptmode_param) {
+	case ATH10K_CRYPT_MODE_HW:
+		clear_bit(ATH10K_FLAG_RAW_MODE, &ar->dev_flags);
+		clear_bit(ATH10K_FLAG_HW_CRYPTO_DISABLED, &ar->dev_flags);
+		break;
+	case ATH10K_CRYPT_MODE_SW:
+		if (!test_bit(ATH10K_FW_FEATURE_RAW_MODE_SUPPORT,
+			      ar->fw_features)) {
+			ath10k_err(ar, "cryptmode > 0 requires raw mode support from firmware");
+			return -EINVAL;
+		}
+
+		set_bit(ATH10K_FLAG_RAW_MODE, &ar->dev_flags);
+		set_bit(ATH10K_FLAG_HW_CRYPTO_DISABLED, &ar->dev_flags);
+		break;
+	default:
+		ath10k_info(ar, "invalid cryptmode: %d\n",
+			    ath10k_cryptmode_param);
+		return -EINVAL;
+	}
 	/* Backwards compatibility for firmwares without
 	 * ATH10K_FW_IE_WMI_OP_VERSION.
 	 */

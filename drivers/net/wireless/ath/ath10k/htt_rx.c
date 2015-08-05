@@ -1017,9 +1017,8 @@ static void ath10k_htt_rx_h_undecap_raw(struct ath10k *ar,
 	skb_trim(msdu, msdu->len - FCS_LEN);
 
 	/* In most cases this will be true for sniffed frames. It makes sense
-	 * to deliver them as-is without stripping the crypto param. This would
-	 * also make sense for software based decryption (which is not
-	 * implemented in ath10k).
+	 * to deliver them as-is without stripping the crypto param. This is
+	 * necessary for software based decryption.
 	 *
 	 * If there's no error then the frame is decrypted. At least that is
 	 * the case for frames that come in via fragmented rx indication.

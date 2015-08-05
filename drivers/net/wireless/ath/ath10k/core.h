@@ -92,6 +92,7 @@ struct ath10k_skb_cb {
 		u8 tid;
 		u16 freq;
 		bool is_offchan;
+		bool nohwcrypt;
 		struct ath10k_htt_txbuf *txbuf;
 		u32 txbuf_paddr;
 	} __packed htt;
@@ -341,6 +342,7 @@ struct ath10k_vif {
 	} u;
 
 	bool use_cts_prot;
+	bool nohwcrypt;
 	int num_legacy_stations;
 	int txpower;
 	struct wmi_wmm_params_all_arg wmm_params;
@@ -463,6 +465,11 @@ enum ath10k_fw_features {
 	/* Firmware supports bypassing PLL setting on init. */
 	ATH10K_FW_FEATURE_SUPPORTS_SKIP_CLOCK_INIT = 9,
 
+	/* Raw mode support. If supported, FW supports receiving and trasmitting
+	 * frames in raw mode.
+	 */
+	ATH10K_FW_FEATURE_RAW_MODE_SUPPORT = 10,
+
 	/* keep last */
 	ATH10K_FW_FEATURE_COUNT,
 };
@@ -476,12 +483,28 @@ enum ath10k_dev_flags {
 	 * waiters should immediately cancel instead of waiting for a time out.
 	 */
 	ATH10K_FLAG_CRASH_FLUSH,
+
+	/* Use Raw mode instead of native WiFi Tx/Rx encap mode.
+	 * Raw mode supports both hardware and software crypto. Native WiFi only
+	 * supports hardware crypto.
+	 */
+	ATH10K_FLAG_RAW_MODE,
+
+	/* Disable HW crypto engine */
+	ATH10K_FLAG_HW_CRYPTO_DISABLED,
 };
 
 enum ath10k_cal_mode {
 	ATH10K_CAL_MODE_FILE,
 	ATH10K_CAL_MODE_OTP,
 	ATH10K_CAL_MODE_DT,
+};
+
+enum ath10k_crypt_mode {
+	/* Only use hardware crypto engine */
+	ATH10K_CRYPT_MODE_HW,
+	/* Only use software crypto engine */
+	ATH10K_CRYPT_MODE_SW,
 };
 
 static inline const char *ath10k_cal_mode_str(enum ath10k_cal_mode mode)
