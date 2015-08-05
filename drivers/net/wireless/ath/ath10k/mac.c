@@ -416,47 +416,6 @@ static int ath10k_clear_vdev_key(struct ath10k_vif *arvif,
 	return first_errno;
 }
 
-static int ath10k_mac_vif_sta_fix_wep_key(struct ath10k_vif *arvif, int keyidx)
-{
-	struct ath10k *ar = arvif->ar;
-	enum nl80211_iftype iftype = arvif->vif->type;
-	struct ieee80211_key_conf *key;
-	u32 flags;
-	int ret;
-	int i;
-
-	lockdep_assert_held(&ar->conf_mutex);
-
-	if (iftype != NL80211_IFTYPE_STATION)
-		return 0;
-
-	if (keyidx < 0)
-		return 0;
-
-	for (i = 0; i < ARRAY_SIZE(arvif->wep_keys); i++) {
-		if (!arvif->wep_keys[i])
-			continue;
-
-		key = arvif->wep_keys[i];
-
-		flags = 0;
-		flags |= WMI_KEY_PAIRWISE;
-
-		if (key->keyidx == keyidx)
-			flags |= WMI_KEY_TX_USAGE;
-
-		ret = ath10k_install_key(arvif, key, SET_KEY, arvif->bssid,
-					 flags);
-		if (ret) {
-			ath10k_warn(ar, "failed to install key %i on vdev %i: %d\n",
-				    key->keyidx, arvif->vdev_id, ret);
-			return ret;
-		}
-	}
-
-	return 0;
-}
-
 static int ath10k_mac_vif_update_wep_key(struct ath10k_vif *arvif,
 					 struct ieee80211_key_conf *key)
 {
@@ -1079,25 +1038,6 @@ static int ath10k_monitor_stop(struct ath10k *ar)
 	return 0;
 }
 
-static bool ath10k_mac_should_disable_promisc(struct ath10k *ar)
-{
-	struct ath10k_vif *arvif;
-
-	if (!(ar->filter_flags & FIF_PROMISC_IN_BSS))
-		return true;
-
-	if (!ar->num_started_vdevs)
-		return false;
-
-	list_for_each_entry(arvif, &ar->arvifs, list)
-		if (arvif->vdev_type != WMI_VDEV_TYPE_AP)
-			return false;
-
-	ath10k_dbg(ar, ATH10K_DBG_MAC,
-		   "mac disabling promiscuous mode because vdev is started\n");
-	return true;
-}
-
 static bool ath10k_mac_monitor_vdev_is_needed(struct ath10k *ar)
 {
 	int num_ctx;
@@ -1116,7 +1056,7 @@ static bool ath10k_mac_monitor_vdev_is_needed(struct ath10k *ar)
 		return false;
 
 	return ar->monitor ||
-	       !ath10k_mac_should_disable_promisc(ar) ||
+	       ar->filter_flags & FIF_OTHER_BSS ||
 	       test_bit(ATH10K_CAC_RUNNING, &ar->dev_flags);
 }
 
@@ -4199,7 +4139,7 @@ static int ath10k_add_interface(struct ieee80211_hw *hw,
 		arvif->vdev_type = WMI_VDEV_TYPE_IBSS;
 		break;
 	case NL80211_IFTYPE_MESH_POINT:
-		arvif->vdev_type = WMI_VDEV_TYPE_AP; /* FIXME */
+		arvif->vdev_type = WMI_VDEV_TYPE_AP;
 		break;
 	case NL80211_IFTYPE_AP:
 		arvif->vdev_type = WMI_VDEV_TYPE_AP;
