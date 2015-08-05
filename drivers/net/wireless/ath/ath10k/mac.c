@@ -1258,7 +1258,7 @@ static int ath10k_vdev_start_restart(struct ath10k_vif *arvif,
 {
 	struct ath10k *ar = arvif->ar;
 	struct wmi_vdev_start_request_arg arg = {};
-	int ret = 0, ret2;
+	int ret = 0;
 
 	lockdep_assert_held(&ar->conf_mutex);
 
@@ -1289,10 +1289,6 @@ static int ath10k_vdev_start_restart(struct ath10k_vif *arvif,
 		arg.ssid = arvif->vif->bss_conf.ssid;
 		arg.ssid_len = arvif->vif->bss_conf.ssid_len;
 	}
-
-	/* hack for mesh beacon */
-	arg.ssid = "A";
-	arg.ssid_len = 1;
 
 	ath10k_dbg(ar, ATH10K_DBG_MAC,
 		   "mac vdev %d start center_freq %d phymode %s\n",
@@ -4515,6 +4511,13 @@ static void ath10k_bss_info_changed(struct ieee80211_hw *hw,
 		if (ret)
 			ath10k_warn(ar, "failed to update beacon template: %d\n",
 				    ret);
+
+		if (vif->type == NL80211_IFTYPE_MESH_POINT) {
+			/* mesh doesn't use SSID but firmware needs it */
+			strncpy(arvif->u.ap.ssid, "mesh",
+				sizeof(arvif->u.ap.ssid));
+			arvif->u.ap.ssid_len = 4;
+		}
 	}
 
 	if (changed & BSS_CHANGED_AP_PROBE_RESP) {
