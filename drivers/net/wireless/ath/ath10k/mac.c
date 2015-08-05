@@ -1317,16 +1317,6 @@ static int ath10k_vdev_start_restart(struct ath10k_vif *arvif,
 	ar->num_started_vdevs++;
 	ath10k_recalc_radar_detection(ar);
 
-	ret = ath10k_monitor_recalc(ar);
-	if (ret) {
-		ath10k_warn(ar, "mac failed to recalc monitor for vdev %i restart %d: %d\n",
-			    arg.vdev_id, restart, ret);
-		ret2 = ath10k_vdev_stop(arvif);
-		if (ret2)
-			ath10k_warn(ar, "mac failed to stop vdev %i restart %d: %d\n",
-				    arg.vdev_id, restart, ret2);
-	}
-
 	return ret;
 }
 
