@@ -253,5 +253,13 @@ int ath10k_htt_setup(struct ath10k_htt *htt)
 	if (status)
 		return status;
 
-	return ath10k_htt_send_rx_ring_cfg_ll(htt);
+	status = ath10k_htt_send_rx_ring_cfg_ll(htt);
+    if (status)
+        return status;
+
+    status = ath10k_htt_h2t_aggr_cfg_msg(htt,
+            htt->max_num_ampdu,
+            htt->max_num_amsdu);
+
+    return status;
 }

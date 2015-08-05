@@ -153,6 +153,7 @@ struct ath10k_wmi {
 	const struct wmi_ops *ops;
 
 	u32 num_mem_chunks;
+	u32 rx_decap_mode;
 	struct ath10k_mem_chunk mem_chunks[WMI_MAX_MEM_REQS];
 };
 
@@ -383,9 +384,6 @@ struct ath10k_debug {
 	u32 pktlog_filter;
 	u32 reg_addr;
 	u32 nf_cal_period;
-
-	u8 htt_max_amsdu;
-	u8 htt_max_ampdu;
 
 	struct ath10k_fw_crash_data *fw_crash_data;
 };

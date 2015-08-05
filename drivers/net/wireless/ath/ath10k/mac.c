@@ -3231,12 +3231,37 @@ ath10k_tx_h_get_txmode(struct ath10k *ar, struct ieee80211_vif *vif,
 	 * Some wmi-tlv firmwares for qca6174 have broken Tx key selection for
 	 * NativeWifi txmode - it selects AP key instead of peer key. It seems
 	 * to work with Ethernet txmode so use it.
+	 *
+	 * FIXME: Check if raw mode works with TDLS.
 	 */
 	if (ieee80211_is_data_present(fc) && sta && sta->tdls)
 		return ATH10K_HW_TXRX_ETHERNET;
 
-	return ATH10K_HW_TXRX_RAW;
+	if (vif->type == NL80211_IFTYPE_MESH_POINT) {
+		set_bit(ATH10K_FLAG_RAW_MODE, &ar->dev_flags);
+		set_bit(ATH10K_FLAG_HW_CRYPTO_DISABLED, &ar->dev_flags);
+
+		ar->wmi.rx_decap_mode = ATH10K_HW_TXRX_RAW;
+		ar->htt.max_num_amsdu = 1;
+		return ATH10K_HW_TXRX_RAW;
+	}
+
+	if (test_bit(ATH10K_FLAG_RAW_MODE, &ar->dev_flags))
+		return ATH10K_HW_TXRX_RAW;
+
 	return ATH10K_HW_TXRX_NATIVE_WIFI;
+}
+
+static bool ath10k_tx_h_use_hwcrypto(struct ieee80211_vif *vif,
+				     struct sk_buff *skb) {
+	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(skb);
+	const u32 mask = IEEE80211_TX_INTFL_DONT_ENCRYPT |
+			 IEEE80211_TX_CTL_INJECTED;
+	if ((info->flags & mask) == mask)
+		return false;
+	if (vif)
+		return !ath10k_vif_to_arvif(vif)->nohwcrypt;
+	return true;
 }
 
 /* HTT Tx uses Native Wifi tx mode which expects 802.11 frames without QoS
@@ -3375,52 +3400,6 @@ static void ath10k_mac_tx(struct ath10k *ar, struct sk_buff *skb)
 		break;
 	}
 
-	if (ret) {
-		ath10k_warn(ar, "failed to transmit packet, dropping: %d\n",
-			    ret);
-		ieee80211_free_txskb(ar->hw, skb);
-	}
-}
-
-static void ath10k_tx_htt(struct ath10k *ar, struct sk_buff *skb)
-{
-	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
-	int ret = 0;
-
-	if (ar->htt.target_version_major >= 3) {
-		/* Since HTT 3.0 there is no separate mgmt tx command */
-		ret = ath10k_htt_tx(&ar->htt, skb);
-		goto exit;
-	}
-
-	if (ieee80211_is_mgmt(hdr->frame_control)) {
-		if (test_bit(ATH10K_FW_FEATURE_HAS_WMI_MGMT_TX,
-			     ar->fw_features)) {
-			if (skb_queue_len(&ar->wmi_mgmt_tx_queue) >=
-			    ATH10K_MAX_NUM_MGMT_PENDING) {
-				ath10k_warn(ar, "reached WMI management transmit queue limit\n");
-				ret = -EBUSY;
-				goto exit;
-			}
-
-			skb_queue_tail(&ar->wmi_mgmt_tx_queue, skb);
-			ieee80211_queue_work(ar->hw, &ar->wmi_mgmt_tx_work);
-		} else {
-			ret = ath10k_htt_mgmt_tx(&ar->htt, skb);
-		}
-	} else if (!test_bit(ATH10K_FW_FEATURE_HAS_WMI_MGMT_TX,
-			     ar->fw_features) &&
-		   ieee80211_is_nullfunc(hdr->frame_control)) {
-		/* FW does not report tx status properly for NullFunc frames
-		 * unless they are sent through mgmt tx path. mac80211 sends
-		 * those frames when it detects link/beacon loss and depends
-		 * on the tx status to be correct. */
-		ret = ath10k_htt_mgmt_tx(&ar->htt, skb);
-	} else {
-		ret = ath10k_htt_tx(&ar->htt, skb);
-	}
-
-exit:
 	if (ret) {
 		ath10k_warn(ar, "failed to transmit packet, dropping: %d\n",
 			    ret);
@@ -5020,13 +4999,6 @@ static void ath10k_set_default_unicast_key(struct ieee80211_hw *hw,
 	}
 
 	arvif->def_wep_key_idx = keyidx;
-
-	ret = ath10k_mac_vif_sta_fix_wep_key(arvif, keyidx);
-	if (ret) {
-		ath10k_warn(ar, "failed to fix sta wep key on vdev %i: %d\n",
-			    arvif->vdev_id, ret);
-		goto unlock;
-	}
 
 unlock:
 	mutex_unlock(&arvif->ar->conf_mutex);

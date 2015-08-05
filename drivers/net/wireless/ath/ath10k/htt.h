@@ -19,6 +19,7 @@
 #define _HTT_H_
 
 #include <linux/bug.h>
+#include <linux/idr.h>
 #include <linux/interrupt.h>
 #include <linux/dmapool.h>
 #include <linux/hashtable.h>
@@ -1366,6 +1367,8 @@ struct ath10k_htt {
 	u8 target_version_minor;
 	struct completion target_version_received;
 	enum ath10k_fw_htt_op_version op_version;
+	u8 max_num_amsdu;
+	u8 max_num_ampdu;
 
 	const enum htt_t2h_msg_type *t2h_msg_types;
 	u32 t2h_msg_types_max;
@@ -1527,6 +1530,12 @@ struct htt_rx_desc {
  */
 #define HTT_LOG2_MAX_CACHE_LINE_SIZE 7	/* 2^7 = 128 */
 #define HTT_MAX_CACHE_LINE_SIZE_MASK ((1 << HTT_LOG2_MAX_CACHE_LINE_SIZE) - 1)
+
+/* These values are default in most firmware revisions and apparently are a
+ * sweet spot performance wise.
+ */
+#define ATH10K_HTT_MAX_NUM_AMSDU_DEFAULT 3
+#define ATH10K_HTT_MAX_NUM_AMPDU_DEFAULT 64
 
 int ath10k_htt_connect(struct ath10k_htt *htt);
 int ath10k_htt_init(struct ath10k *ar);

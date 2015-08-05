@@ -1363,12 +1363,8 @@ static ssize_t ath10k_read_htt_max_amsdu_ampdu(struct file *file,
 
 	mutex_lock(&ar->conf_mutex);
 
-	if (ar->debug.htt_max_amsdu)
-		amsdu = ar->debug.htt_max_amsdu;
-
-	if (ar->debug.htt_max_ampdu)
-		ampdu = ar->debug.htt_max_ampdu;
-
+	amsdu = ar->htt.max_num_amsdu;
+	ampdu = ar->htt.max_num_ampdu;
 	mutex_unlock(&ar->conf_mutex);
 
 	len = scnprintf(buf, sizeof(buf), "%u %u\n", amsdu, ampdu);
@@ -1402,8 +1398,8 @@ static ssize_t ath10k_write_htt_max_amsdu_ampdu(struct file *file,
 		goto out;
 
 	res = count;
-	ar->debug.htt_max_amsdu = amsdu;
-	ar->debug.htt_max_ampdu = ampdu;
+	ar->htt.max_num_amsdu = amsdu;
+	ar->htt.max_num_ampdu = ampdu;
 
 out:
 	mutex_unlock(&ar->conf_mutex);
@@ -1904,9 +1900,6 @@ void ath10k_debug_stop(struct ath10k *ar)
 	 * warning from del_timer(). */
 	if (ar->debug.htt_stats_mask != 0)
 		cancel_delayed_work(&ar->debug.htt_stats_dwork);
-
-	ar->debug.htt_max_amsdu = 0;
-	ar->debug.htt_max_ampdu = 0;
 
 	ath10k_wmi_pdev_pktlog_disable(ar);
 }

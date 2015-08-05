@@ -1644,6 +1644,8 @@ static void ath10k_htt_rx_frm_tx_compl(struct ath10k *ar,
 	case HTT_DATA_TX_STATUS_DOWNLOAD_FAIL:
 		tx_done.discard = true;
 		break;
+	case HTT_T2H_MSG_TYPE_AGGR_CONF:
+		break;
 	default:
 		ath10k_warn(ar, "unhandled tx completion status %d\n", status);
 		tx_done.discard = true;
