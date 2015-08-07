@@ -3642,22 +3642,19 @@ static void ath10k_tx(struct ieee80211_hw *hw,
 	switch (ATH10K_SKB_CB(skb)->txmode) {
 	case ATH10K_HW_TXRX_MGMT:
 	case ATH10K_HW_TXRX_NATIVE_WIFI:
-	case ATH10K_HW_TXRX_RAW:
-		if (!ATH10K_SKB_CB(skb)->txmode == ATH10K_HW_TXRX_RAW)
-			ath10k_tx_h_nwifi(hw, skb);
+		ath10k_tx_h_nwifi(hw, skb);
 		ath10k_tx_h_add_p2p_noa_ie(ar, vif, skb);
 		ath10k_tx_h_seq_no(vif, skb);
 		break;
 	case ATH10K_HW_TXRX_ETHERNET:
 		ath10k_tx_h_8023(skb);
 		break;
-	default:
-		/* FIXME: Packet injection isn't implemented. It should be
-		 * doable with firmware 10.2 on qca988x.
-		 */
-		WARN_ON_ONCE(1);
-		ieee80211_free_txskb(hw, skb);
-		return;
+	case ATH10K_HW_TXRX_RAW:
+		if (!test_bit(ATH10K_FLAG_RAW_MODE, &ar->dev_flags)) {
+			WARN_ON_ONCE(1);
+			ieee80211_free_txskb(hw, skb);
+			return;
+		}
 	}
 
 	if (info->flags & IEEE80211_TX_CTL_TX_OFFCHAN) {
