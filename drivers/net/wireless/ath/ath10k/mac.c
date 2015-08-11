@@ -3639,6 +3639,10 @@ static void ath10k_tx(struct ieee80211_hw *hw,
 	ATH10K_SKB_CB(skb)->txmode = ath10k_tx_h_get_txmode(ar, vif, sta, skb);
 	ATH10K_SKB_CB(skb)->is_protected = ieee80211_has_protected(fc);
 
+	printk(KERN_DEBUG "XXX frame -> %pM seq %d len %d flags %x queue %d\n",
+			  hdr->addr1, le16_to_cpu(hdr->seq_ctrl) >> 4,
+			  skb->len, info->flags, info->hw_queue);
+
 	switch (ATH10K_SKB_CB(skb)->txmode) {
 	case ATH10K_HW_TXRX_MGMT:
 	case ATH10K_HW_TXRX_NATIVE_WIFI:
